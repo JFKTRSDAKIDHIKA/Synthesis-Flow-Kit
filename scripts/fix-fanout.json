@@ -1,0 +1,10 @@
+{
+    "file_path": {
+        "sdc_file": "",
+        "lib_files": "",
+        "lef_files": "",
+        "def_file": ""
+    },
+    "insert_buffer": "BUFx4_ASAP7_75t_R",
+    "max_fanout": 30
+}

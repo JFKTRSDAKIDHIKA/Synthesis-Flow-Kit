@@ -1,0 +1,11 @@
+bin/
+/pdk/
+result
+*.log
+*.mr
+*.pvl
+*.syn
+*.alib
+*.cksum
+*.sv
+*.v
