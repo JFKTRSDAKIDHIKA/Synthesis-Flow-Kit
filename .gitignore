@@ -1,5 +1,5 @@
 bin/
-/pdk/
+# /pdk/
 result
 *.log
 *.mr
