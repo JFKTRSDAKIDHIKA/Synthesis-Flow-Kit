@@ -34,6 +34,10 @@ set_app_var search_path $sp
 set_app_var target_library $lib_db_list
 set_app_var link_library   [concat "*" $target_library]
 
+# ---- Enable Power Analysis ----
+set power_enable_analysis true
+set power_analysis_mode averaged
+
 # ---- Read netlist ----
 if {![file exists $STA_NETLIST]} {
   puts stderr "ERROR: STA_NETLIST not found: $STA_NETLIST"
@@ -83,9 +87,9 @@ report_constraints -all_violators    > $RESULT_DIR/pt.constraints.rpt
 report_timing -max_paths 50 -delay_type max -input_pins -nets -transition_time \
                                      > $TIMING_RPT
 report_qor                           > $RESULT_DIR/pt.qor.rpt
-
-# If you want separate hold report:
 report_timing -max_paths 50 -delay_type min -input_pins -nets -transition_time \
                                      > $RESULT_DIR/pt.hold.rpt
+# Generate Power Report
+report_power -hierarchy -levels 3 > $RESULT_DIR/pt.power.rpt
 
 exit

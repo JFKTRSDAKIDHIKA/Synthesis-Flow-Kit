@@ -6,6 +6,10 @@ DESIGN ?= gcd
 export CLK_FREQ_MHZ ?= 500
 PDK ?= nangate45
 
+# Array parameters
+export ARRAY_M ?= 4
+export ARRAY_N ?= 4
+
 # Provide these from CLI or uncomment defaults if you want:
 # SDC_FILE  ?= $(PROJ_PATH)/example/$(DESIGN).sdc
 # RTL_FILES ?= $(shell find $(PROJ_PATH)/example -name "*.v")
@@ -24,7 +28,7 @@ PT_SHELL  ?= pt_shell
 
 # Directories / scripts
 SCRIPT_DIR := $(PROJ_PATH)/scripts
-RESULT_DIR := $(PROJ_PATH)/result/$(DESIGN)-$(PDK)-$(CLK_FREQ_MHZ)MHz
+RESULT_DIR := $(PROJ_PATH)/result/$(DESIGN)-$(PDK)-$(CLK_FREQ_MHZ)MHz-M$(ARRAY_M)-N$(ARRAY_N)
 
 YOSYS_SCRIPT ?= $(SCRIPT_DIR)/yosys.tcl
 DC_SCRIPT    ?= $(SCRIPT_DIR)/dc.tcl
