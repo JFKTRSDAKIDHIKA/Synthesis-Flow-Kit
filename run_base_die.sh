@@ -7,9 +7,10 @@ PDK=asap7sc7p5t_28
 STA_TOOL=pt
 
 # dims=(2 4 8 16 32 64)
-dims=(4 8 16 32)
+dims=(32 64 128)
 # freqs=(500 600 700 800 900 1100 1200 1300 1400 1500)
-freqs=(1100)
+freqs=(1000)
+# freqs=(500)
 max_jobs=10
 
 run_one() {
