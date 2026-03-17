@@ -25,6 +25,7 @@ YOSYS     ?= yosys
 OPENSTA   ?= sta
 DC_SHELL  ?= dc_shell-t
 PT_SHELL  ?= pt_shell
+LC_SHELL  ?= lc_shell
 
 # Directories / scripts
 SCRIPT_DIR := $(PROJ_PATH)/scripts
@@ -139,12 +140,32 @@ check-lib-db:
 	@missing=0; \
 	for f in $(LIB_DBS); do \
 	  if [ ! -f "$$f" ]; then \
+	    missing=1; \
+	  fi; \
+	done; \
+	if [ $$missing -ne 0 ] && [ "$(PDK)" = "nangate45" ]; then \
+	  $(MAKE) gen-lib-db PDK=$(PDK); \
+	fi; \
+	for f in $(LIB_DBS); do \
+	  if [ ! -f "$$f" ]; then \
 	    echo "ERROR: LIB DB not found: $$f" >&2; \
 	    missing=1; \
 	  fi; \
 	done; \
 	if [ $$missing -ne 0 ]; then exit 2; fi
 .PHONY: check-lib-db
+
+gen-lib-db:
+ifeq ($(PDK),nangate45)
+	@echo "Generating Nangate45 .db from $(NANGATE45_LIB)..."
+	@$(LC_SHELL) -f $(SCRIPT_DIR)/nangate45_lib_to_db.tcl \
+	-x "set LIB_FILE {$(abspath $(NANGATE45_LIB))}; \
+	    set OUT_DB {$(abspath $(NANGATE45_DB))};"
+else
+	@echo "ERROR: gen-lib-db is only implemented for PDK=nangate45" >&2
+	@exit 2
+endif
+.PHONY: gen-lib-db
 
 check-lib-lib:
 	@if [ ! -f "$(LIB_FILE)" ]; then \

@@ -8,6 +8,11 @@ STA_TOOL=pt
 freqs=(100 200 300 400 500 600 700 800 900 1000)
 max_jobs=10
 
+if [ ! -f "./pdk/nangate45/lib/Nangate45_typ.db" ]; then
+    echo "Nangate45 .db not found. Generating it from liberty with Library Compiler..."
+    make gen-lib-db PDK="$PDK"
+fi
+
 run_one() {
     local freq=$1
     local result_dir="result/${design}-${PDK}-${freq}MHz"
