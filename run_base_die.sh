@@ -1,6 +1,6 @@
 #!/bin/bash
 
-design="dot_product_array"
+design="pim_dot_product_top"
 sdc_file="./constraint.sdc"
 rtl_files=$(find ./vsrc/pim_dot_product -type f \( -name "*.v" -o -name "*.sv" -o -name "*.vh" \) | tr '\n' ' ')
 PDK=asap7sc7p5t_28
