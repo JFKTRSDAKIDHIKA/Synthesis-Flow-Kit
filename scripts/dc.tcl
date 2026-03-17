@@ -3,10 +3,21 @@
 # ==================================================
 # Optional parameter override for DSE
 # ==================================================
-if {[info exists ::env(ARRAY_M)] && [info exists ::env(ARRAY_N)]} {
-    set MY_M $::env(ARRAY_M)
-    set MY_N $::env(ARRAY_N)
-    puts "Synthesizing with ARRAY_M=$MY_M, ARRAY_N=$MY_N"
+set param_overrides {}
+
+foreach {param env_name} {
+    ARRAY_M ARRAY_M
+    ARRAY_N ARRAY_N
+    DATA_W  DATA_W
+} {
+    if {[info exists ::env($env_name)]} {
+        set param_value $::env($env_name)
+        lappend param_overrides "${param}=${param_value}"
+    }
+}
+
+if {[llength $param_overrides] > 0} {
+    puts "Synthesizing with parameter overrides: [join $param_overrides {, }]"
 }
 
 # ==================================================
@@ -56,10 +67,10 @@ analyze -format sverilog $other_list
 # ==================================================
 # Elaborate and link
 # ==================================================
-if {$DESIGN eq "tripim_buffer_die_top"} {
-    elaborate $DESIGN
+if {[llength $param_overrides] > 0} {
+    elaborate $DESIGN -parameters [join $param_overrides {, }]
 } else {
-    elaborate $DESIGN -parameters "ARRAY_M=$MY_M, ARRAY_N=$MY_N"
+    elaborate $DESIGN
 }
 
 current_design $DESIGN
