@@ -7,5 +7,5 @@ result
 *.syn
 *.alib
 *.cksum
-*.sv
-*.v
+# *.sv
+# *.v
