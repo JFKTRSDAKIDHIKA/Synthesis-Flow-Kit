@@ -1,5 +1,4 @@
 (* black_box *)
-// synopsys syn_black_box
 module tripim_local_buffer #(
   parameter int DATA_W       = 64,
   parameter int BUFFER_BYTES = 4096,
