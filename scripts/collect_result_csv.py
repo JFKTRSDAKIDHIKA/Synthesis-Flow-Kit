@@ -78,17 +78,33 @@ def parse_power(report_path: Path) -> float | None:
         return None
 
     lines = report_path.read_text(encoding="utf-8", errors="ignore").splitlines()
+    previous_nonempty = ""
     for line in reversed(lines):
-        match = POWER_LINE_PATTERN.match(line.strip()) or POWER_VALUES_PATTERN.match(line)
+        stripped = line.strip()
+        match = POWER_LINE_PATTERN.match(stripped) or POWER_VALUES_PATTERN.match(line)
         if not match:
+            if stripped:
+                previous_nonempty = stripped
             continue
+
+        # PrimeTime may wrap long hierarchy names onto a separate line and print
+        # only the numeric columns on the following line. Ignore summary/footer
+        # lines such as the trailing "1".
+        if POWER_VALUES_PATTERN.match(line) and previous_nonempty in {"Hierarchy", "-" * len(previous_nonempty)}:
+            previous_nonempty = stripped
+            continue
+
         int_power = float(match.group("int_power"))
         switch_power = float(match.group("switch_power"))
         leak_power = float(match.group("leak_power"))
         total_power = float(match.group("total_power"))
-        if abs((int_power + switch_power + leak_power) - total_power) > max(1e-6, total_power * 1e-3):
+        # PrimeTime prints rounded values, so the component sum can differ from
+        # total power by a few ulp. Keep a relaxed tolerance here.
+        if abs((int_power + switch_power + leak_power) - total_power) > max(1e-5, total_power * 1e-2):
+            previous_nonempty = stripped
             continue
         return total_power
+        previous_nonempty = stripped
     return None
 
 

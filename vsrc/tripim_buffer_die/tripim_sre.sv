@@ -87,9 +87,6 @@ module tripim_sre #(
   sre_state_e state_q;
   task_desc_t active_task_q;
 
-  // Single-port local SRAM model.
-  logic [DATA_W-1:0] local_sram [0:BUFFER_BEATS-1];
-
   logic [ADDR_W-1:0] alloc_ptr_q;
   logic [ADDR_W-1:0] local_base_ptr_q;
   logic [ADDR_W-1:0] local_wr_ptr_q;
@@ -138,10 +135,14 @@ module tripim_sre #(
   logic wr_req_hb;
   logic wr_req_gather;
   logic wr_req_dma;
+  logic buffer_wr_en;
   logic rd_req_local;
   logic rd_grant_local;
   logic [ADDR_W-1:0] wr_addr_local;
   logic [DATA_W-1:0] wr_data_local;
+  logic [ADDR_W-1:0] buffer_wr_addr;
+  logic [DATA_W-1:0] buffer_wr_data;
+  logic [DATA_W-1:0] local_rd_data;
 
   logic local_store_pending_q;
   logic [ADDR_W-1:0] local_store_addr_q;
@@ -257,6 +258,43 @@ module tripim_sre #(
   assign wr_req_dma   = dma_wr_valid && dma_wr_ready;
 
   always_comb begin
+    buffer_wr_en   = 1'b0;
+    buffer_wr_addr = '0;
+    buffer_wr_data = '0;
+
+    if (wr_req_local) begin
+      buffer_wr_en   = 1'b1;
+      buffer_wr_addr = wr_addr_local;
+      buffer_wr_data = wr_data_local;
+    end else if (wr_req_hb) begin
+      buffer_wr_en   = 1'b1;
+      buffer_wr_addr = local_wr_ptr_q;
+      buffer_wr_data = hb_in_data;
+    end else if (wr_req_gather) begin
+      buffer_wr_en   = 1'b1;
+      buffer_wr_addr = gather_wr_ptr_q;
+      buffer_wr_data = {{(DATA_W-64){1'b0}}, ing_pkt.payload};
+    end else if (wr_req_dma) begin
+      buffer_wr_en   = 1'b1;
+      buffer_wr_addr = dma_wr_addr;
+      buffer_wr_data = dma_wr_data;
+    end
+  end
+
+  tripim_local_buffer #(
+    .DATA_W      (DATA_W),
+    .BUFFER_BYTES(BUFFER_BYTES),
+    .ADDR_W      (ADDR_W)
+  ) u_local_buffer (
+    .clk    (clk),
+    .wr_en  (buffer_wr_en),
+    .wr_addr(buffer_wr_addr),
+    .wr_data(buffer_wr_data),
+    .rd_addr(local_rd_ptr_q),
+    .rd_data(local_rd_data)
+  );
+
+  always_comb begin
     hb_in_ready    = 1'b0;
     ing_out_ready  = 1'b0;
     egr_in_valid   = 1'b0;
@@ -286,7 +324,7 @@ module tripim_sre #(
         egr_pkt_c.bcast      = 1'b0;
         egr_pkt_c.bcast_mask = '0;
         egr_pkt_c.last       = (send_beats_q + 1'b1 >= tile_beats_q);
-        egr_pkt_c.payload    = local_sram[local_rd_ptr_q][63:0];
+        egr_pkt_c.payload    = local_rd_data[63:0];
         egr_in_bits = egr_pkt_c;
       end
 
@@ -362,16 +400,8 @@ module tripim_sre #(
       grp_softmax_done_pulse   <= 1'b0;
       grp_close_pulse          <= 1'b0;
 
-      // Single-port SRAM write arbitration: LOCAL > HB > GATHER > DMA.
       if (wr_req_local) begin
-        local_sram[wr_addr_local] <= wr_data_local;
         local_store_pending_q <= 1'b0;
-      end else if (wr_req_hb) begin
-        local_sram[local_wr_ptr_q] <= hb_in_data;
-      end else if (wr_req_gather) begin
-        local_sram[gather_wr_ptr_q] <= {{(DATA_W-64){1'b0}}, ing_pkt.payload};
-      end else if (wr_req_dma) begin
-        local_sram[dma_wr_addr] <= dma_wr_data;
       end
 
       case (state_q)

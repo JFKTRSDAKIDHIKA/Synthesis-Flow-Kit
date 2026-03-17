@@ -1,5 +1,5 @@
 module tripim_buffer_die_top #(
-  parameter int NUM_SRES                = 8,
+  parameter int NUM_SRES                = 16,
   parameter int DATA_W                  = 64,
   parameter int TASK_QUEUE_DEPTH        = 8,
   parameter int COMPLETION_QUEUE_DEPTH  = 16,

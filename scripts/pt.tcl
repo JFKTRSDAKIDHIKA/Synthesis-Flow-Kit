@@ -66,15 +66,18 @@ if {![file exists $SDC_FILE]} {
 }
 read_sdc $SDC_FILE
 
-# Optional safeguard: if no clocks defined by SDC, create one on port 'clock'
-# (comment out if your SDC always creates clocks)
+# Optional safeguard: if no clocks defined by SDC, create one on port 'clk'
+# first, then fall back to 'clock'.
 if {[llength [all_clocks]] == 0} {
   set period_ns [expr 1000.0 / $CLK_FREQ_MHZ]
-  if {[sizeof_collection [get_ports clock]] > 0} {
+  if {[sizeof_collection [get_ports clk]] > 0} {
+    puts "Warning: No clocks found in SDC. Creating default clock on port 'clk' period=${period_ns}ns"
+    create_clock -period $period_ns [get_ports clk]
+  } else if {[sizeof_collection [get_ports clock]] > 0} {
     puts "Warning: No clocks found in SDC. Creating default clock on port 'clock' period=${period_ns}ns"
     create_clock -period $period_ns [get_ports clock]
   } else {
-    puts "Warning: No clocks found and no port named 'clock'. Skipping default clock creation."
+    puts "Warning: No clocks found and no port named 'clk' or 'clock'. Skipping default clock creation."
   }
 }
 
