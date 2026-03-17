@@ -10,9 +10,13 @@ import sys
 from pathlib import Path
 
 
-DIR_PATTERN = re.compile(
+ARRAY_DIR_PATTERN = re.compile(
     r"^(?P<design>.+)-(?P<tech>[^-]+)-(?P<freq_mhz>\d+(?:\.\d+)?)MHz-M(?P<m>\d+)-N(?P<n>\d+)$"
 )
+DOT_PRODUCT_DIR_PATTERN = re.compile(
+    r"^(?P<design>.+)-(?P<tech>[^-]+)-(?P<freq_mhz>\d+(?:\.\d+)?)MHz-DATA_W(?P<data_w>\d+)$"
+)
+DOT_PRODUCT_ELEM_W = 8
 AREA_PATTERN = re.compile(r"Total cell area:\s+([0-9.eE+-]+)")
 POWER_LINE_PATTERN = re.compile(
     r"^(?P<hierarchy>\S+)\s+"
@@ -89,7 +93,13 @@ def parse_power(report_path: Path) -> float | None:
 
 
 def build_entry(result_subdir: Path) -> dict[str, object]:
-    match = DIR_PATTERN.match(result_subdir.name)
+    match = ARRAY_DIR_PATTERN.match(result_subdir.name)
+    mode = "array"
+
+    if not match:
+        match = DOT_PRODUCT_DIR_PATTERN.match(result_subdir.name)
+        mode = "dot_product"
+
     if not match:
         return {
             "Entry": result_subdir.name,
@@ -97,6 +107,8 @@ def build_entry(result_subdir: Path) -> dict[str, object]:
             "Technology Node": "",
             "Clock Frequency (MHz)": "",
             "Clock Frequency (GHz)": "",
+            "Data Width (bit)": "",
+            "Lane Count": "",
             "Array Size": "",
             "Cell Area (um²)": "",
             "Total Power (W)": "",
@@ -109,16 +121,26 @@ def build_entry(result_subdir: Path) -> dict[str, object]:
     raw_tech = match.group("tech")
     freq_mhz = float(match.group("freq_mhz"))
     freq_ghz = freq_mhz / 1000.0
-    array_m = int(match.group("m"))
-    array_n = int(match.group("n"))
-    array_size = array_m * array_n
+    data_width = None
+    lane_count = None
+    array_size = None
+
+    if mode == "array":
+        array_m = int(match.group("m"))
+        array_n = int(match.group("n"))
+        array_size = array_m * array_n
+        mac_count = array_size
+    else:
+        data_width = int(match.group("data_w"))
+        lane_count = data_width // DOT_PRODUCT_ELEM_W
+        mac_count = lane_count
 
     area = parse_area(result_subdir / "dc.area.rpt")
     power = parse_power(result_subdir / "pt.power.rpt")
 
     energy_per_mac_pj = None
-    if power is not None and freq_mhz > 0 and array_size > 0:
-        energy_per_mac_pj = power / (freq_ghz * 1e9 * array_size) * 1e12
+    if power is not None and freq_mhz > 0 and mac_count > 0:
+        energy_per_mac_pj = power / (freq_ghz * 1e9 * mac_count) * 1e12
 
     missing = []
     if area is None:
@@ -132,7 +154,9 @@ def build_entry(result_subdir: Path) -> dict[str, object]:
         "Technology Node": prettify_tech(raw_tech),
         "Clock Frequency (MHz)": f"{freq_mhz:g}",
         "Clock Frequency (GHz)": f"{freq_ghz:g}",
-        "Array Size": array_size,
+        "Data Width (bit)": "" if data_width is None else data_width,
+        "Lane Count": "" if lane_count is None else lane_count,
+        "Array Size": "" if array_size is None else array_size,
         "Cell Area (um²)": "" if area is None else f"{area:.6f}",
         "Total Power (W)": "" if power is None else f"{power:.6e}",
         "Energy per MAC (pJ/MAC)": "" if energy_per_mac_pj is None else f"{energy_per_mac_pj:.6f}",
@@ -155,6 +179,8 @@ def main() -> int:
     parameters = [
         "Technology Node",
         "Clock Frequency (GHz)",
+        "Data Width (bit)",
+        "Lane Count",
         "Cell Area (um²)",
         "Array Size",
         "Total Power (W)",
