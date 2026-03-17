@@ -5,13 +5,23 @@
 # ==================================================
 set param_overrides {}
 
-foreach {param env_name} {
-    ARRAY_M ARRAY_M
-    ARRAY_N ARRAY_N
-    DATA_W  DATA_W
-} {
-    if {[info exists ::env($env_name)]} {
-        set param_value $::env($env_name)
+set supported_params {}
+switch -- $DESIGN {
+    tripim_base_die_top {
+        set supported_params {ARRAY_M ARRAY_N}
+    }
+    pim_dot_product_top -
+    dot_product_array {
+        set supported_params {DATA_W}
+    }
+    default {
+        set supported_params {}
+    }
+}
+
+foreach param $supported_params {
+    if {[info exists ::env($param)]} {
+        set param_value $::env($param)
         lappend param_overrides "${param}=${param_value}"
     }
 }
