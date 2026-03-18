@@ -6,23 +6,26 @@ rtl_files=$(find ./vsrc/pim_dot_product -type f \( -name "*.v" -o -name "*.sv" -
 PDK=asap7sc7p5t_28
 STA_TOOL=pt
 
-data_widths=(128 256 512 1024 2048)
+data_widths=(32 64 128 256 512 1024 2048)
+lanes_list=(16 32 64 128 256)
 freqs=(500 600 700 800 900 1000 1100 1200 1300 1400 1500)
 max_jobs=10
 
 run_one() {
     local data_w=$1
-    local freq=$2
+    local lanes=$2
+    local freq=$3
 
-    local result_dir="result/${design}-${PDK}-${freq}MHz-DATA_W${data_w}"
+    local result_dir="result/${design}-${PDK}-${freq}MHz-DATA_W${data_w}-LANES${lanes}"
     mkdir -p "$result_dir"
 
     local syn_log="${result_dir}/syn.log"
     local sta_log="${result_dir}/sta.log"
 
-    echo "Starting DATA_W=$data_w CLK=${freq}MHz"
+    echo "Starting DATA_W=$data_w LANES=$lanes CLK=${freq}MHz"
 
     DATA_W=$data_w \
+    LANES=$lanes \
     make syn \
         PDK="$PDK" \
         DESIGN="$design" \
@@ -33,6 +36,7 @@ run_one() {
         > "$syn_log" 2>&1
 
     DATA_W=$data_w \
+    LANES=$lanes \
     make sta \
         PDK="$PDK" \
         DESIGN="$design" \
@@ -43,15 +47,17 @@ run_one() {
         STA_TOOL="$STA_TOOL" \
         > "$sta_log" 2>&1
 
-    echo "Finished DATA_W=$data_w CLK=${freq}MHz"
+    echo "Finished DATA_W=$data_w LANES=$lanes CLK=${freq}MHz"
 }
 
 for data_w in "${data_widths[@]}"; do
-    for freq in "${freqs[@]}"; do
-        run_one "$data_w" "$freq" &
+    for lanes in "${lanes_list[@]}"; do
+        for freq in "${freqs[@]}"; do
+            run_one "$data_w" "$lanes" "$freq" &
 
-        while [ "$(jobs -r | wc -l)" -ge "$max_jobs" ]; do
-            sleep 1
+            while [ "$(jobs -r | wc -l)" -ge "$max_jobs" ]; do
+                sleep 1
+            done
         done
     done
 done

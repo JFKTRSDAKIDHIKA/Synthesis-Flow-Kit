@@ -26,7 +26,6 @@ module dot_product_array #(
     // freezing all pipeline registers with a shared advance enable; there is
     // no extra input skid buffer, so in_ready deasserts immediately when the
     // output side stalls.
-    localparam int DERIVED_LANES = DATA_W / ELEM_W;
     localparam int TREE_LEVELS   = (LANES <= 1) ? 0 : $clog2(LANES);
     localparam int ADD_STAGES    = PIPELINE_ADD ? TREE_LEVELS : 0;
     localparam int TOTAL_STAGES  = (PIPELINE_MUL ? 1 : 0) + ADD_STAGES + 1;
@@ -60,14 +59,6 @@ module dot_product_array #(
     endfunction
 
     generate
-        if ((DATA_W % ELEM_W) != 0) begin : gen_bad_data_ratio
-            PARAM_DATA_W_MUST_BE_MULTIPLE_OF_ELEM_W u_param_error();
-        end
-
-        if (LANES != DERIVED_LANES) begin : gen_bad_lane_cfg
-            PARAM_LANES_MUST_MATCH_DATA_W_OVER_ELEM_W u_param_error();
-        end
-
         if (LANES <= 0) begin : gen_bad_lane_zero
             PARAM_LANES_MUST_BE_POSITIVE u_param_error();
         end
@@ -84,9 +75,23 @@ module dot_product_array #(
     genvar lane;
     generate
         for (lane = 0; lane < LANES; lane++) begin : gen_lanes
-            // Slice the packed input buses into per-lane elements.
-            assign a_lane[lane]      = vec_a[(lane * ELEM_W) +: ELEM_W];
-            assign b_lane[lane]      = vec_b[(lane * ELEM_W) +: ELEM_W];
+            localparam int LANE_LSB        = lane * ELEM_W;
+            localparam int AVAILABLE_BITS  = DATA_W - LANE_LSB;
+
+            // DATA_W and LANES are intentionally decoupled for DSE:
+            // - extra high bits in the packed vectors are ignored
+            // - missing bits for oversized lane counts are zero-padded
+            if (AVAILABLE_BITS >= ELEM_W) begin : gen_full_lane
+                assign a_lane[lane] = vec_a[LANE_LSB +: ELEM_W];
+                assign b_lane[lane] = vec_b[LANE_LSB +: ELEM_W];
+            end else if (AVAILABLE_BITS > 0) begin : gen_partial_lane
+                assign a_lane[lane] = {{(ELEM_W-AVAILABLE_BITS){1'b0}}, vec_a[LANE_LSB +: AVAILABLE_BITS]};
+                assign b_lane[lane] = {{(ELEM_W-AVAILABLE_BITS){1'b0}}, vec_b[LANE_LSB +: AVAILABLE_BITS]};
+            end else begin : gen_zero_lane
+                assign a_lane[lane] = '0;
+                assign b_lane[lane] = '0;
+            end
+
             assign product_comb[lane] = lane_product(a_lane[lane], b_lane[lane]);
 
             if (PIPELINE_MUL) begin : gen_mul_pipe

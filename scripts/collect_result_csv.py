@@ -14,7 +14,11 @@ ARRAY_DIR_PATTERN = re.compile(
     r"^(?P<design>.+)-(?P<tech>[^-]+)-(?P<freq_mhz>\d+(?:\.\d+)?)MHz-M(?P<m>\d+)-N(?P<n>\d+)$"
 )
 DOT_PRODUCT_DIR_PATTERN = re.compile(
-    r"^(?P<design>.+)-(?P<tech>[^-]+)-(?P<freq_mhz>\d+(?:\.\d+)?)MHz-DATA_W(?P<data_w>\d+)$"
+    r"^(?P<design>.+)-(?P<tech>[^-]+)-(?P<freq_mhz>\d+(?:\.\d+)?)MHz-DATA_W(?P<data_w>\d+)"
+    r"(?:-LANES(?P<lanes>\d+))?$"
+)
+FREQ_ONLY_DIR_PATTERN = re.compile(
+    r"^(?P<design>.+)-(?P<tech>[^-]+)-(?P<freq_mhz>\d+(?:\.\d+)?)MHz$"
 )
 DOT_PRODUCT_ELEM_W = 8
 AREA_PATTERN = re.compile(r"Total cell area:\s+([0-9.eE+-]+)")
@@ -117,6 +121,10 @@ def build_entry(result_subdir: Path) -> dict[str, object]:
         mode = "dot_product"
 
     if not match:
+        match = FREQ_ONLY_DIR_PATTERN.match(result_subdir.name)
+        mode = "freq_only"
+
+    if not match:
         return {
             "Entry": result_subdir.name,
             "Design": "",
@@ -146,16 +154,19 @@ def build_entry(result_subdir: Path) -> dict[str, object]:
         array_n = int(match.group("n"))
         array_size = array_m * array_n
         mac_count = array_size
-    else:
+    elif mode == "dot_product":
         data_width = int(match.group("data_w"))
-        lane_count = data_width // DOT_PRODUCT_ELEM_W
+        lanes = match.groupdict().get("lanes")
+        lane_count = int(lanes) if lanes is not None else data_width // DOT_PRODUCT_ELEM_W
         mac_count = lane_count
+    else:
+        mac_count = None
 
     area = parse_area(result_subdir / "dc.area.rpt")
     power = parse_power(result_subdir / "pt.power.rpt")
 
     energy_per_mac_pj = None
-    if power is not None and freq_mhz > 0 and mac_count > 0:
+    if power is not None and freq_mhz > 0 and mac_count is not None and mac_count > 0:
         energy_per_mac_pj = power / (freq_ghz * 1e9 * mac_count) * 1e12
 
     missing = []

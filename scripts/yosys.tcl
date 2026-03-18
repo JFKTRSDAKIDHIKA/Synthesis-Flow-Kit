@@ -58,6 +58,18 @@ if {[info exist VERILOG_TOP_PARAMS]} {
     }
 }
 
+set env_top_params {}
+foreach key {ARRAY_M ARRAY_N DATA_W LANES} {
+    if {[info exists ::env($key)]} {
+        dict set env_top_params $key $::env($key)
+    }
+}
+if {[dict size $env_top_params] > 0} {
+    dict for {key value} $env_top_params {
+        chparam -set $key $value $DESIGN
+    }
+}
+
 
 # Read platform specific mapfile for OPENROAD_CLKGATE cells
 if {[info exist CLKGATE_MAP_FILE]} {

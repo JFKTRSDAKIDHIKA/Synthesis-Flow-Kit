@@ -12,7 +12,7 @@ switch -- $DESIGN {
     }
     pim_dot_product_top -
     dot_product_array {
-        set supported_params {DATA_W}
+        set supported_params {DATA_W LANES}
     }
     default {
         set supported_params {}

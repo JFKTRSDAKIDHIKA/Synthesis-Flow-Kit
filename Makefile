@@ -9,6 +9,8 @@ PDK ?= nangate45
 # Array parameters
 export ARRAY_M ?= 4
 export ARRAY_N ?= 4
+export DATA_W ?= 1024
+export LANES ?= 128
 
 # Provide these from CLI or uncomment defaults if you want:
 # SDC_FILE  ?= $(PROJ_PATH)/example/$(DESIGN).sdc
@@ -29,7 +31,11 @@ LC_SHELL  ?= lc_shell
 
 # Directories / scripts
 SCRIPT_DIR := $(PROJ_PATH)/scripts
-RESULT_DIR := $(PROJ_PATH)/result/$(DESIGN)-$(PDK)-$(CLK_FREQ_MHZ)MHz-M$(ARRAY_M)-N$(ARRAY_N)
+ifeq ($(filter $(DESIGN),pim_dot_product_top dot_product_array),)
+RESULT_DIR ?= $(PROJ_PATH)/result/$(DESIGN)-$(PDK)-$(CLK_FREQ_MHZ)MHz-M$(ARRAY_M)-N$(ARRAY_N)
+else
+RESULT_DIR ?= $(PROJ_PATH)/result/$(DESIGN)-$(PDK)-$(CLK_FREQ_MHZ)MHz-DATA_W$(DATA_W)-LANES$(LANES)
+endif
 
 YOSYS_SCRIPT ?= $(SCRIPT_DIR)/yosys.tcl
 DC_SCRIPT    ?= $(SCRIPT_DIR)/dc.tcl
@@ -97,6 +103,8 @@ print-config:
 	@echo "CLK_FREQ_MHZ   = $(CLK_FREQ_MHZ)"
 	@echo "SYN_TOOL       = $(SYN_TOOL)"
 	@echo "STA_TOOL       = $(STA_TOOL)"
+	@echo "DATA_W         = $(DATA_W)"
+	@echo "LANES          = $(LANES)"
 	@echo "SDC_FILE       = $(SDC_FILE)"
 	@echo "RTL_FILES      = $(RTL_FILES)"
 	@echo "RESULT_DIR     = $(RESULT_DIR)"
