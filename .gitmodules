@@ -1,0 +1,3 @@
+[submodule "pdk/USC-3N-2D"]
+	path = pdk/USC-3N-2D
+	url = https://github.com/SCCAD-LAB/USC-3N-2D.git

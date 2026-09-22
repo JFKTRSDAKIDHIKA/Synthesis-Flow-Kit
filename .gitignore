@@ -1,11 +1,17 @@
+# Locally installed tools (oss-cad-suite bundles Yosys + the slang frontend;
+# bin/ is where `make init` puts Yosys and OpenSTA).
 bin/
-# /pdk/
-result
+tools/
+oss-cad-suite/
+oss-cad-suite-*.tgz*
+
+# Flow outputs. Nothing a run produces belongs in the source tree; the
+# CoralNPU AME flow writes everything under <repo>/build instead.
+result/
+synth-results/
 *.log
 *.mr
 *.pvl
 *.syn
 *.alib
 *.cksum
-# *.sv
-# *.v
