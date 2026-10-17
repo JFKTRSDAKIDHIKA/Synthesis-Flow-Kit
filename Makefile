@@ -3,7 +3,7 @@ PROJ_PATH := $(shell pwd)
 
 # User-configurable knobs (CLI override)
 DESIGN ?= gcd
-export CLK_FREQ_MHZ ?= 500
+export CLK_FREQ_MHZ ?= 400
 PDK ?= nangate45
 
 # Array parameters

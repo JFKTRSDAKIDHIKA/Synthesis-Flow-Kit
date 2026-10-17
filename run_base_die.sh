@@ -8,7 +8,7 @@ STA_TOOL=pt
 
 data_widths=(32 64 128 256 512 1024 2048)
 lanes_list=(16 32 64 128 256)
-freqs=(500 600 700 800 900 1000 1100 1200 1300 1400 1500)
+freqs=(400)
 max_jobs=10
 
 run_one() {

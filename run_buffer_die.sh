@@ -5,7 +5,7 @@ sdc_file="./constraint.sdc"
 rtl_files=$(find ./vsrc/tripim_buffer_die -type f \( -name "*.v" -o -name "*.sv" -o -name "*.vh" \) | tr '\n' ' ')
 PDK=nangate45
 STA_TOOL=pt
-freqs=(100 200 300 400 500 600 700 800 900 1000)
+freqs=(400)
 max_jobs=10
 
 if [ ! -f "./pdk/nangate45/lib/Nangate45_typ.db" ]; then

@@ -1,5 +1,5 @@
 set clk_port_name clk
-set CLK_FREQ_MHZ 700
+set CLK_FREQ_MHZ 400
 if {[info exists env(CLK_FREQ_MHZ)]} {
   set CLK_FREQ_MHZ $::env(CLK_FREQ_MHZ)
 } else {

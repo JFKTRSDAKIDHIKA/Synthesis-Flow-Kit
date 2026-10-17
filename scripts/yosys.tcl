@@ -10,7 +10,7 @@ set RESULT_DIR              [file dirname $NETLIST_SYN_V]
 
 source "[file dirname [info script]]/common.tcl"
 
-set CLK_FREQ_MHZ            500
+set CLK_FREQ_MHZ            400
 if {[info exists env(CLK_FREQ_MHZ)]} {
   set CLK_FREQ_MHZ          $::env(CLK_FREQ_MHZ)
 } else {
