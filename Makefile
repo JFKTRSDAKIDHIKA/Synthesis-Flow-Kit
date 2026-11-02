@@ -263,3 +263,14 @@ $(PT_RPT): check-sdc check-netlist check-lib-db $(PT_SCRIPT)
 clean:
 	-rm -rf result/ vsrc/generated
 .PHONY: clean
+
+# All new Genus launches delegate to the reference methodology's public entry.
+PYTHON ?= python3
+GENUS_CONFIG ?=
+.PHONY: genus-check genus-plan genus genus-test
+genus-check genus-plan genus:
+	@test -n "$(GENUS_CONFIG)" || (echo 'Set GENUS_CONFIG=/absolute/path/to/design.json' >&2; exit 2)
+	$(PYTHON) genus/run.py $(if $(filter genus-check,$@),check,$(if $(filter genus-plan,$@),plan,synth)) "$(GENUS_CONFIG)"
+genus-test:
+	$(PYTHON) -m unittest discover -s genus/scripts -p 'test_*.py' -v
+	$(PYTHON) -m unittest discover -s genus/tests -p 'test_*.py' -v

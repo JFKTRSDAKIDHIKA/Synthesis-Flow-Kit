@@ -15,3 +15,7 @@ synth-results/
 *.syn
 *.alib
 *.cksum
+
+# Python tooling in the Genus reference methodology.
+__pycache__/
+*.pyc

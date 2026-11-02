@@ -1,0 +1,59 @@
+{
+  "schema_version": 1,
+  "platform_id": "REPLACE_WITH_FROZEN_VME_PLATFORM_ID",
+  "flow": "blocks",
+  "top": "VmeCoreMini512_ITCM8KB_DTCM128KBAxi",
+  "rtl": "/absolute/path/to/qualified/inputs/vme.sram.sv",
+  "blackboxes": "/absolute/path/to/qualified/inputs/blackboxes.v",
+  "std_lib": "/absolute/path/to/qualified/inputs/standard.lib",
+  "sram_lib_dir": "/absolute/path/to/qualified/lib",
+  "spec": "/absolute/path/to/qualified/inputs/macro-spec.json",
+  "out_dir": "/absolute/path/to/PnR-Flow-Kit/runs/UNIQUE-vme/genus",
+  "lock_file": "/absolute/path/to/workspace/.workspace/genus-synthesis.lock",
+  "admission_gib": 36,
+  "tools": {
+    "genus": "genus",
+    "yosys": "yosys"
+  },
+  "options": {
+    "period_ps": 2500,
+    "threads": 2,
+    "effort": "medium",
+    "blocks": [
+      "SCore",
+      "Regfile",
+      "FloatCore",
+      "LsuV3",
+      "RvvCoreWrapper",
+      "rvv_backend_falu",
+      "rvv_backend_mulmac",
+      "rvv_backend_vrf",
+      "zvt",
+      "zvt_pe_array",
+      "zvt_pe_block",
+      "zvt_ctrl",
+      "zvt_mt",
+      "zvt_mt_reg",
+      "GenusMtReadPort",
+      "GenusMtWriteBank"
+    ],
+    "defines": [
+      "SYNTHESIS",
+      "VLEN_128",
+      "ZVE32F_ON",
+      "ZVT_ON"
+    ],
+    "yosys_boundaries": true,
+    "repair_rvv_genvars": true,
+    "factor_mt": true,
+    "factor_lsu": true,
+    "factor_lsu_state": true,
+    "flatten_blocks": [
+      "zvt_mt_reg"
+    ],
+    "clean_blocks": [
+      "zvt_mt",
+      "LsuV3"
+    ]
+  }
+}

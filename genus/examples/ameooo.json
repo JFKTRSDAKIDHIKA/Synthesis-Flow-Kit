@@ -1,0 +1,70 @@
+{
+  "schema_version": 1,
+  "platform_id": "REPLACE_WITH_FROZEN_AMEOOO_PLATFORM_ID",
+  "flow": "blocks",
+  "top": "AMEOOO",
+  "rtl": "/absolute/path/to/qualified/inputs/ameooo.sram.sv",
+  "blackboxes": "/absolute/path/to/qualified/inputs/blackboxes.v",
+  "std_lib": "/absolute/path/to/qualified/inputs/standard.lib",
+  "sram_lib_dir": "/absolute/path/to/qualified/lib",
+  "spec": "/absolute/path/to/qualified/inputs/macro-spec.json",
+  "out_dir": "/absolute/path/to/PnR-Flow-Kit/runs/UNIQUE-ameooo/genus",
+  "lock_file": "/absolute/path/to/workspace/.workspace/genus-synthesis.lock",
+  "admission_gib": 36,
+  "tools": {
+    "genus": "genus",
+    "yosys": "yosys"
+  },
+  "options": {
+    "period_ps": 2500,
+    "threads": 2,
+    "effort": "medium",
+    "blocks": [
+      "AmeArithmeticUnit32",
+      "AmeMatrixUnit",
+      "AmeReductionUnit",
+      "AmeElementUnit",
+      "AmeLsu",
+      "AmeSpecialUnit",
+      "RetirementBuffer",
+      "CircularBufferMulti_2",
+      "AmeMatrixRegisterRenameMap",
+      "AmeVmrStateTable",
+      "AmePhysicalMatrixRegisterState",
+      "AmeAccumulatorRegisterRenameMap",
+      "AmeAccumulatorVarStateTable",
+      "AmePhysicalAccumulatorRegAllocator",
+      "AmePhysicalAccumulatorRegisterState",
+      "AmeIssueQueue",
+      "AmeIssueQueue_2",
+      "AmeIssueQueue_5",
+      "AmeIssueScheduler",
+      "AmeIssueScheduler_1",
+      "AmeIssueScheduler_2",
+      "AmeIssueScheduler_3",
+      "AmeIssueQueueForMemoryInstructions",
+      "AmeIssueSchedulerForMemoryInstructions",
+      "AmeDataTransferBetweenMrfAndLsu",
+      "AmeRob",
+      "AmeRobRetirementUnit",
+      "AmePhysicalRegAllocator",
+      "AmeRegisterFile",
+      "AmeAccumulatorFile",
+      "AmeBankedAccumulator",
+      "bankData_memory_16x512",
+      "SCore",
+      "LsuV3"
+    ],
+    "defines": [
+      "SYNTHESIS"
+    ],
+    "yosys_boundaries": true,
+    "clean_blocks": [
+      "AmeElementUnit",
+      "AmeLsu",
+      "AmeSpecialUnit",
+      "CircularBufferMulti_2"
+    ],
+    "extract_element_cones": true
+  }
+}

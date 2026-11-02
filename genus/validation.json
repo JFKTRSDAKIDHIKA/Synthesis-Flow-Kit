@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "validation_run": "coralnpu/PnR-Flow-Kit/runs/genus-methodology-validation-20261102-225903",
+  "tests": {
+    "total": 53,
+    "passed": 52,
+    "skipped": 1,
+    "skip_reason": "Optional hierarchical area comparison needs old PDK fixtures"
+  },
+  "real_tool_checks": [
+    "Slang/Yosys tiny hierarchical plan passed through the public entry with Genus set to /usr/bin/false",
+    "Current frozen RVV inputs accepted by the read-only configuration check; no run output or native process created",
+    "Mapped-netlist normalization tests use actual Yosys when available"
+  ],
+  "fake_tool_checks": [
+    "Public synth entry, code snapshot and final restore plumbing",
+    "Zero exit without completion marker rejected",
+    "Shared-lock contention returns75",
+    "Output overwrite and input-hash mismatch rejected",
+    "Direct internal native driver rejected",
+    "Configuration mutation during execution rejected"
+  ],
+  "retained_source_hash_checks": 52,
+  "source_inputs_unchanged": true,
+  "imported_files_intentionally_adapted": [
+    "scripts/genus_blocks.py",
+    "scripts/run_genus.py",
+    "scripts/test_genus_blocks.py",
+    "tcl/genus.tcl",
+    "scripts/repair_genvars.py",
+    "tcl/genus-block.tcl",
+    "tcl/final-check.tcl",
+    "scripts/genus_lsu_factor.py"
+  ],
+  "production_genus_jobs_launched": 0,
+  "limits": [
+    "No new full-chip native synthesis, timing closure or equivalent PPA result claimed",
+    "Existing active/queued campaign controllers and source snapshots were not changed"
+  ],
+  "real_plan_status": "tiny-plan/result-release/entry-status.json",
+  "scope": "Source consolidation and launcher validation only; no production synthesis result",
+  "stage_refactor_validation": {
+    "date": "2026-11-03",
+    "command": "make -C coralnpu/Synthesis-Flow-Kit genus-test",
+    "result": {
+      "total": 58,
+      "passed": 57,
+      "skipped": 1
+    },
+    "checks": [
+      "Real Tcl drivers sourced from a snapshot with spaces in its path and unrelated working directory",
+      "Flat/block stage order and child-netlist reads",
+      "Mapping failure prevents optimization and completion marker",
+      "Cold verification performs no synthesis",
+      "All Tcl sources copied by public entry snapshot",
+      "Clock, setup uncertainty and 500 ps I/O budgets execute before synthesis; reg2reg excludes I/O explicitly"
+    ],
+    "limits": "Tcl commands are stubbed in stage tests; no native Genus job or timing closure claimed",
+    "production_genus_jobs_launched": 0,
+    "publication_correction": "Restored empty constraints stage found in staged-file review; added execution coverage before publication"
+  }
+}

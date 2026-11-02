@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "platform_id": "REPLACE_WITH_FROZEN_RVV_PLATFORM_ID",
+  "flow": "blocks",
+  "top": "RvvCoreMini512_ITCM8KB_DTCM128KBAxi",
+  "rtl": "/absolute/path/to/qualified/inputs/rvv.sram.sv",
+  "blackboxes": "/absolute/path/to/qualified/inputs/blackboxes.v",
+  "std_lib": "/absolute/path/to/qualified/inputs/standard.lib",
+  "sram_lib_dir": "/absolute/path/to/qualified/lib",
+  "spec": "/absolute/path/to/qualified/inputs/macro-spec.json",
+  "out_dir": "/absolute/path/to/PnR-Flow-Kit/runs/UNIQUE-rvv/genus",
+  "lock_file": "/absolute/path/to/workspace/.workspace/genus-synthesis.lock",
+  "admission_gib": 36,
+  "tools": {
+    "genus": "genus",
+    "yosys": "yosys"
+  },
+  "options": {
+    "period_ps": 2500,
+    "threads": 2,
+    "effort": "medium",
+    "blocks": [
+      "SCore",
+      "Regfile",
+      "FloatCore",
+      "LsuV3",
+      "RvvCoreWrapper",
+      "rvv_backend_falu",
+      "rvv_backend_mulmac",
+      "rvv_backend_vrf"
+    ],
+    "defines": [
+      "SYNTHESIS",
+      "VLEN_128",
+      "ZVE32F_ON"
+    ],
+    "yosys_boundaries": true,
+    "repair_rvv_genvars": true
+  }
+}
