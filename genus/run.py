@@ -4,6 +4,7 @@ import argparse
 import fcntl
 import hashlib
 import json
+import math
 import os
 import re
 from pathlib import Path
@@ -209,16 +210,33 @@ def configuration(path, stage):
     if lock in inputs.values() or str(lock) in pins: raise ValueError('The shared lock cannot be an input file')
     if lock == ROOT or ROOT in lock.parents: raise ValueError('The shared lock must be outside genus/')
     admission = c.get('admission_gib', 36)
-    if not isinstance(admission,(int,float)) or admission < 0: raise ValueError('admission_gib must be nonnegative')
+    if isinstance(admission,bool) or not isinstance(admission,(int,float)) or not math.isfinite(admission) or admission < 0: raise ValueError('admission_gib must be nonnegative')
     return c, out, lock, dict(schema_version=1, platform_id=c['platform_id'], stage=stage,
         configuration=str(path), configuration_sha256=hashlib.sha256(config_bytes).hexdigest(), command=cmd,
         inputs_sha256=pins, sources_sha256=source_hashes(), customization=custom, checkpoint=checkpoint,
+        hardware_inputs=dict(inputs={key:pins[str(inputs[key])] for key in ('rtl','blackboxes','std_lib','spec')},
+            macros=[pins[str(p)] for p in sorted(inputs['sram_lib_dir'].glob('*.lib'))],
+            hold_corner=dict(corner_id=hold.get('corner_id','same-as-synthesis'),std_lib=pins[str(hold_lib)],
+                             macros=[pins[str(p)] for p in sorted(hold_macros.glob('*.lib'))])),
         hold_sta_command=sta, tools_sha256={genus:sha(genus), shlex.split(yosys)[0]:sha(shlex.split(yosys)[0]),
                        shlex.split(sta)[0]:sha(shlex.split(sta)[0])},
         resource_policy=dict(threads=options['threads'], native_jobs=1, admission_gib=admission,
             pause_below_gib=8,resume_above_gib=12,own_pss_limit_gib=32,sampled_only=True),
         scope=('Yosys-only elaboration and structural plan; no native mapping or timing qualification' if stage=='plan' else
                'Native synthesis and structural checks only; timing closure, equivalence and physical closure require separate evidence'))
+
+
+def verify_frozen(out, manifest, launch_digest):
+    if sha(out/'launch.json') != launch_digest:
+        raise RuntimeError('Frozen launch record changed')
+    if sha(out/'configuration.json') != manifest['configuration_sha256']:
+        raise RuntimeError('Frozen configuration changed')
+    for relative, expected in manifest['sources_sha256'].items():
+        if sha(out/'flow-source'/relative) != expected:
+            raise RuntimeError('Frozen source changed: '+relative)
+    for name, expected in manifest.get('design_snapshot_sha256',{}).items():
+        if sha(name) != expected:
+            raise RuntimeError('Design snapshot changed during run: '+name)
 
 
 def run_config(stage, config):
@@ -263,10 +281,14 @@ def run_config(stage, config):
             custom['origins']={v:k for k,v in relocated.items()}
             write_json(out/'design-inputs/customization.json',custom)
         manifest['design_snapshot_sha256']={target:sha(target) for target in relocated.values()}
+        if relocated:
+            manifest['design_snapshot_sha256'][str(out/'design-inputs/customization.json')]=sha(out/'design-inputs/customization.json')
         write_json(out/'launch.json',manifest)
         if sha(config)!=manifest['configuration_sha256']:raise RuntimeError('Configuration changed before launch')
         shutil.copy2(config, out/'configuration.json')
         if sha(out/'configuration.json')!=manifest['configuration_sha256']:raise RuntimeError('Configuration changed while snapshotting')
+        launch_digest=sha(out/'launch.json')
+        verify_frozen(out,manifest,launch_digest)
         env={'CORAL_GENUS_ENTRY':str(ROOT/'run.py'), 'OMP_NUM_THREADS':'1',
              'OPENBLAS_NUM_THREADS':'1', 'MKL_NUM_THREADS':'1'}
         if os.environ.get('CDS_LIC_FILE'):
@@ -276,6 +298,7 @@ def run_config(stage, config):
         def update(metrics): write_json(out/'resources.json',metrics)
         try:
             execute(manifest['command'],out,out/'entry-console.log',update,env)
+            verify_frozen(out,manifest,launch_digest)
             if stage=='synth':
                 native=out/'native-final';native.mkdir()
                 opts=c.get('options',{})
@@ -302,11 +325,11 @@ def run_config(stage, config):
                     raise RuntimeError('Final native restore did not reach its completion marker')
                 if re.search(r'\*\*ERROR:|^Error\s*:',text,re.M):
                     raise RuntimeError('Final native restore reported an error')
+            verify_frozen(out,manifest,launch_digest)
             if stage=='synth':
                 from hold_sta import analyze
                 analyze(out,c,config.resolve().parent,snapshot,manifest['hold_sta_command'],execute,update,write_json,sha)
-            for name,digest in manifest.get('design_snapshot_sha256',{}).items():
-                if sha(name)!=digest: raise RuntimeError('Design snapshot changed during run: '+name)
+            verify_frozen(out,manifest,launch_digest)
             for name,digest in manifest['inputs_sha256'].items():
                 if sha(name)!=digest: raise RuntimeError('Input changed during the run: '+name)
             if sha(config)!=manifest['configuration_sha256']:raise RuntimeError('Configuration changed during the run')
@@ -316,8 +339,11 @@ def run_config(stage, config):
             if stage=='synth':
                 from compare_runs import collect
                 write_json(out/'metrics.json',collect(out,c['top']))
+            from evidence import seal
+            evidence=seal(out) if stage=='synth' else None
             write_json(status,dict(state='complete',stage=stage,finished_unix=time.time(),
-                scope=manifest['scope'], mapped_sha256=sha(out/'mapped.v') if stage=='synth' else None))
+                scope=manifest['scope'], mapped_sha256=sha(out/'mapped.v') if stage=='synth' else None,
+                evidence_schema_version=1 if stage=='synth' else None,artifacts_sha256=evidence))
         except BaseException as exc:
             write_json(status,dict(state='resource-retry' if isinstance(exc,ResourceRetry) else 'failed',
                 stage=stage,error=str(exc),finished_unix=time.time()))
@@ -339,6 +365,7 @@ def main():
     q.add_argument('--json',action='store_true')
     q.add_argument('--out',type=Path)
     q.add_argument('--allow-different-inputs',action='store_true')
+    q.add_argument('--allow-unsealed',action='store_true',help='Inspect historical results without an evidence seal; label them unverified')
     q=sub.add_parser('prepare',help='Self-contained SRAM preparation helpers')
     q.add_argument('helper',choices=['models','bind','bind-wide','verify-wide'])
     q.add_argument('arguments',nargs=argparse.REMAINDER)
@@ -348,7 +375,7 @@ def main():
     args=p.parse_args()
     if args.command=='compare':
         from compare_runs import compare, markdown
-        record=compare(args.baseline,args.variant,args.allow_different_inputs)
+        record=compare(args.baseline,args.variant,args.allow_different_inputs,args.allow_unsealed)
         if args.out:
             if args.out.exists(): raise ValueError('Preserve existing comparison output: '+str(args.out))
             write_json(args.out,record)

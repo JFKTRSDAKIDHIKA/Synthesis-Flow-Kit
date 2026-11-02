@@ -105,5 +105,23 @@
     "all_file_hashes_preserved": true,
     "old_path_compatibility_symlinks": true,
     "manifest": "runs/relocation-genus-validation-20261103/manifest.json"
+  },
+  "main_merge_review": {
+    "date": "2026-11-03",
+    "status": "PASS",
+    "scope": "Code review and offline regression validation; no new production native closure claim",
+    "raw_evidence": "runs/main-merge-review-20261103-020028",
+    "native_production_runs": 0,
+    "tests": {
+      "total": 77,
+      "passed": 76,
+      "skipped": 1
+    },
+    "fixes": [
+      "Frozen copied source/configuration/customization integrity rechecked around tool execution",
+      "Completed result evidence sealed and verified before comparison; legacy data explicitly unverified",
+      "Recorded hardware/library identities survive compatible path aliases and missing identities fail",
+      "Non-finite/bool admission settings cannot bypass RAM admission"
+    ]
   }
 }

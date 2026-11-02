@@ -285,6 +285,16 @@ hardware/platform/library/tool identities are rejected by default; use
 `--allow-different-inputs` for an explicitly labelled comparison. Period, SDC
 and hook changes are visible experiment differences; a better slack under a
 looser constraint must not be interpreted as a faster implementation.
+Completed synthesis now seals the copied configuration, launch record, mapped
+netlist, metrics and native reports with SHA-256 values. Comparison rehashes this
+retained evidence before reading metrics and rejects altered or incomplete seals.
+Historical runs without a seal require `--allow-unsealed`; their results are
+explicitly labelled `UNVERIFIED_LEGACY`. This option does not waive a damaged
+seal or a missing input identity, and it never rewrites historical evidence.
+Compatibility aliases can resolve relocated inputs without silently dropping
+recorded macro-library identities. Frozen flow/configuration/hook snapshots are
+also rechecked around tool execution.
+
 Comparison is read-only and refuses to overwrite an existing `--out` file.
 
 ## Input preparation

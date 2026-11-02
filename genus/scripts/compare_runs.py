@@ -1,7 +1,10 @@
 """Extract conservative native metrics and compare two preserved synthesis runs."""
 import json
+import os
 from pathlib import Path
 import re
+
+from evidence import verify
 
 NUMBER = r'[-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][-+]?\d+)?'
 
@@ -34,31 +37,51 @@ def collect(out, top):
 
 
 def hardware_identity(config, launch):
+    if 'hardware_inputs' in launch:
+        recorded=launch['hardware_inputs']
+        if set(recorded)!={'inputs','macros','hold_corner'} or set(recorded['inputs'])!={'rtl','blackboxes','std_lib','spec'} or set(recorded['hold_corner'])!={'corner_id','std_lib','macros'}:
+            raise ValueError('Incomplete recorded hardware/library roles')
+        values=list(recorded['inputs'].values())+recorded['macros']+[recorded['hold_corner']['std_lib']]+recorded['hold_corner']['macros']
+        if any(value is None or value not in launch['inputs_sha256'].values() for value in values):
+            raise ValueError('Recorded hardware/library role has no pinned input')
+        return dict(platform_id=config['platform_id'],top=config['top'],flow=config['flow'],
+                    inputs=recorded['inputs'],macros=sorted(recorded['macros']),
+                    hold_corner=dict(recorded['hold_corner'],macros=sorted(recorded['hold_corner']['macros'])),
+                    tools=sorted(launch['tools_sha256'].values()))
     base = Path(launch['configuration']).parent
+    def recorded_path(value):
+        return Path(os.path.abspath(base/value))
     def pin(value):
-        return launch['inputs_sha256'].get(str((base/value).resolve()))
+        path=recorded_path(value);pins=launch['inputs_sha256']
+        if str(path) in pins and pins[str(path)] is not None:return pins[str(path)]
+        matches={digest for name,digest in pins.items() if Path(name).resolve()==path.resolve()}
+        if len(matches)!=1 or None in matches:raise ValueError('Recorded input identity missing or ambiguous: '+str(path))
+        return matches.pop()
+    def libraries(value):
+        directory=recorded_path(value)
+        return sorted(digest for name,digest in launch['inputs_sha256'].items()
+                      if Path(name).suffix=='.lib' and (Path(name).parent==directory or Path(name).parent.resolve()==directory.resolve()))
     hold=config.get('hold_sta',{})
-    hold_macro_dir=(base/hold.get('sram_lib_dir',config['sram_lib_dir'])).resolve()
     return dict(platform_id=config['platform_id'],top=config['top'],flow=config['flow'],
                 inputs={key:pin(config[key]) for key in ('rtl','blackboxes','std_lib','spec')},
-                macros=sorted(value for path,value in launch['inputs_sha256'].items()
-                              if Path(path).parent==(base/config['sram_lib_dir']).resolve()),
+                macros=libraries(config['sram_lib_dir']),
                 hold_corner=dict(corner_id=hold.get('corner_id','same-as-synthesis'),
                                  std_lib=pin(hold.get('std_lib',config['std_lib'])),
-                                 macros=sorted(value for path,value in launch['inputs_sha256'].items() if Path(path).parent==hold_macro_dir)),
+                                 macros=libraries(hold.get('sram_lib_dir',config['sram_lib_dir']))),
                 tools=sorted(launch['tools_sha256'].values()))
 
 
-def compare(baseline, variant, allow_different=False):
+def compare(baseline, variant, allow_different=False, allow_unsealed=False):
     rows=[]
     for run in (baseline,variant):
         run=Path(run).resolve()
         status=json.loads((run/'entry-status.json').read_text())
         if status.get('state')!='complete' or status.get('stage')!='synth':
             raise ValueError('Comparison requires completed synthesis: '+str(run))
+        integrity=verify(run,status,allow_unsealed)
         config=json.loads((run/'configuration.json').read_text())
         launch=json.loads((run/'launch.json').read_text())
-        rows.append(dict(path=str(run),configuration=config,launch=launch,metrics=collect(run,config['top'])))
+        rows.append(dict(path=str(run),integrity=integrity,configuration=config,launch=launch,metrics=collect(run,config['top'])))
     same=hardware_identity(rows[0]['configuration'],rows[0]['launch'])==hardware_identity(rows[1]['configuration'],rows[1]['launch'])
     if not same and not allow_different:
         raise ValueError('Different hardware/platform/library/tool inputs; use --allow-different-inputs for an explicitly labelled comparison')
@@ -70,6 +93,7 @@ def compare(baseline, variant, allow_different=False):
              for key in set(rows[0]['configuration'])|set(rows[1]['configuration'])
              if key not in {'out_dir','lock_file','admission_gib'} and rows[0]['configuration'].get(key)!=rows[1]['configuration'].get(key)}
     return dict(schema_version=1,baseline=rows[0]['path'],variant=rows[1]['path'],same_hardware_inputs=same,
+                evidence_integrity=dict(baseline=rows[0]['integrity'],variant=rows[1]['integrity']),
                 metrics=metrics,configuration_changes=changes,
                 input_hash_changes={path:dict(baseline=rows[0]['launch']['inputs_sha256'].get(path),variant=rows[1]['launch']['inputs_sha256'].get(path))
                                     for path in sorted(set(rows[0]['launch']['inputs_sha256'])|set(rows[1]['launch']['inputs_sha256']))
@@ -81,7 +105,7 @@ def markdown(record):
     lines=['| Metric | Baseline | Variant | Delta |','| --- | ---: | ---: | ---: |']
     for key,value in record['metrics'].items():
         lines.append('| '+key+' | '+' | '.join('unavailable' if value[k] is None else f'{value[k]:g}' for k in ('baseline','variant','delta'))+' |')
-    lines += ['', 'Same hardware/library/tool inputs: '+str(record['same_hardware_inputs'])+'.',record['scope']+'.',record['area_unit']+'.',
+    lines += ['', 'Evidence integrity: '+str(record['evidence_integrity'])+'.', 'Same hardware/library/tool inputs: '+str(record['same_hardware_inputs'])+'.',record['scope']+'.',record['area_unit']+'.',
               '', 'Configuration changes: '+', '.join(sorted(record['configuration_changes']))+'.',
               'Changed input hashes: '+str(len(record['input_hash_changes']))+'.']
     return '\n'.join(lines)

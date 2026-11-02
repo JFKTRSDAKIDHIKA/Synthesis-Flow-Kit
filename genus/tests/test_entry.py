@@ -28,6 +28,8 @@ if Path(sys.argv[-1]).name=='verify-mapped-netlist.tcl':
     print('CORAL_GENUS_FINAL_CHECK_OK')
 else:
     out=Path(os.environ['FLOW_OUT'])
+    if os.environ.get('FAKE_MUTATE_FROZEN'):
+        (out/'flow-source/tcl/stages/60-map.tcl').write_text('mutated frozen stage')
     (out/'netlist/genus-raw.v').write_text('module Top(input clock);\nendmodule\n')
     (out/'reports/constraints.sdc').write_text('create_clock -name core_clock -period 2500 [get_ports clock]\n')
     for stage in os.environ.get('FLOW_SAVE_CHECKPOINTS','').split():
@@ -110,6 +112,22 @@ class EntryTests(unittest.TestCase):
         result=self.invoke('synth',{'FAKE_NO_MARKER':'1'});self.assertEqual(result.returncode,2)
         status=json.loads((self.root/'output/entry-status.json').read_text())
         self.assertEqual(status['state'],'failed')
+    def test_frozen_source_change_during_execution_is_rejected(self):
+        result=self.invoke('synth',{'FAKE_MUTATE_FROZEN':'1'})
+        self.assertEqual(result.returncode,2)
+        self.assertIn('Frozen source changed',result.stderr)
+        self.assertEqual(json.loads((self.root/'output/entry-status.json').read_text())['state'],'failed')
+
+    def test_modified_report_cannot_be_compared_as_preserved_evidence(self):
+        result=self.invoke('synth');self.assertEqual(result.returncode,0,result.stderr)
+        import shutil
+        baseline=self.root/'output';variant=self.root/'copied-result'
+        shutil.copytree(baseline,variant)
+        (variant/'native-final/hold.rpt').write_text('999.0 slack (MET)\n')
+        result=subprocess.run([sys.executable,str(ROOT/'run.py'),'compare',str(baseline),str(variant)],capture_output=True,text=True)
+        self.assertEqual(result.returncode,2)
+        self.assertIn('Retained artifact changed',result.stderr)
+
     def test_configuration_change_during_execution_is_rejected(self):
         result=self.invoke('synth',{'FAKE_MUTATE_CONFIG':str(self.path)})
         self.assertEqual(result.returncode,2)
@@ -180,6 +198,12 @@ class EntryTests(unittest.TestCase):
         self.save();(self.root/'rtl.v').write_text('module Changed;endmodule')
         result=self.invoke('check');self.assertNotEqual(result.returncode,0)
         self.assertIn('Checkpoint incompatible',result.stderr)
+
+    def test_nonfinite_admission_cannot_disable_the_memory_gate(self):
+        for value in (float('nan'),float('inf'),True):
+            self.config['admission_gib']=value;self.save()
+            result=self.invoke('check');self.assertEqual(result.returncode,2)
+            self.assertIn('admission_gib',result.stderr)
 
     def test_unknown_options_fail_closed(self):
         self.config['options']['timing_overide']=42;self.save()
