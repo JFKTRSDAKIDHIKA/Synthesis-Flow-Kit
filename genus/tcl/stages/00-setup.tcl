@@ -17,6 +17,10 @@ if {$hierarchy eq "flat"} {
   set_db auto_ungroup none
 }
 set_db max_cpus [need FLOW_THREADS]
-set_db syn_generic_effort [need FLOW_EFFORT]
-set_db syn_map_effort [need FLOW_EFFORT]
-set_db syn_opt_effort [need FLOW_EFFORT]
+proc flow_effort {key} {
+  if {[info exists ::env(FLOW_$key)] && $::env(FLOW_$key) ne ""} {return $::env(FLOW_$key)}
+  return [need FLOW_EFFORT]
+}
+set_db syn_generic_effort [flow_effort GENERIC_EFFORT]
+set_db syn_map_effort [flow_effort MAP_EFFORT]
+set_db syn_opt_effort [flow_effort OPT_EFFORT]

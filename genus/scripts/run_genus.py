@@ -9,6 +9,7 @@ import shlex
 import subprocess
 from collections import Counter
 from netlist_lib import parse_modules, read_liberty
+from iteration import load_customization, environment, validate_checkpoint, seal_checkpoints, checkpoint_identity, CHECKPOINTS
 
 
 def yosys_quote(path):
@@ -66,7 +67,14 @@ def main():
     ap.add_argument('--io-fraction', type=float, default=.2)
     ap.add_argument('--input-transition-ps', type=float, default=50)
     ap.add_argument('--output-load-ff', type=float, default=4)
+    ap.add_argument('--customization', type=Path)
+    for stage in ('generic', 'map', 'opt'):
+        ap.add_argument('--'+stage+'-effort', choices=['low','medium','high'])
+    ap.add_argument('--save-checkpoint', action='append', default=[], choices=CHECKPOINTS)
+    ap.add_argument('--resume-checkpoint', type=Path)
     args = ap.parse_args()
+    custom = load_customization(args.customization)
+    resume = validate_checkpoint(args.resume_checkpoint,args,custom) if args.resume_checkpoint else None
     out = args.out_dir.resolve()
     for name in ['logs','reports','netlist']:
         (out / name).mkdir(parents=True, exist_ok=True)
@@ -91,13 +99,25 @@ def main():
         mapping.update(CHILD_NETLISTS='\n'.join(str(p.resolve()) for p in args.child_netlist),
                        PRESERVE_BLOCKS=' '.join(args.preserve_block))
         env.update({'FLOW_' + k: str(v) for k,v in mapping.items()})
+        env.update(environment(custom))
+        env.update(FLOW_SAVE_CHECKPOINTS=' '.join(args.save_checkpoint), FLOW_RESUME_STAGE='',
+                   FLOW_GENERIC_EFFORT=args.generic_effort or args.effort,
+                   FLOW_MAP_EFFORT=args.map_effort or args.effort,
+                   FLOW_OPT_EFFORT=args.opt_effort or args.effort)
+        if resume:
+            origin = args.resume_checkpoint.resolve().parent
+            env.update(FLOW_RESUME_STAGE=resume['stage'], FLOW_RESUME_DB=str(origin/'design.db'),
+                       FLOW_RESUME_VERSION=str(origin/'tool-version.txt'))
         marker = 'CORAL_GENUS_SYNTHESIS_OK'
+    identities = {stage:checkpoint_identity(args,stage,custom) for stage in args.save_checkpoint}
     log = out / 'logs/genus.log'
     with log.open('w') as fh:
         result = subprocess.run([args.genus, '-no_gui', '-batch', '-files', str(script)],
                                 cwd=out, env=env, stdout=fh, stderr=subprocess.STDOUT)
     # Some startup/license/Tcl errors are reported despite exit code zero.
     text = log.read_text(errors='replace')
+    if not args.probe:
+        seal_checkpoints(out,args,custom,text,identities)
     if result.returncode or not any(line.strip() == marker for line in text.splitlines()):
         raise SystemExit(f'Genus failed (exit {result.returncode}, completion marker missing={marker not in text}); inspect {log}')
     if args.probe:

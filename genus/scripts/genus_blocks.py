@@ -147,6 +147,9 @@ def main():
     p.add_argument('--factor-lsu-state',action='store_true',help='prove and split the 128-entry LSU register-table update logic into eight banks')
     p.add_argument('--yosys',required=True);p.add_argument('--genus',required=True)
     p.add_argument('--jobs',type=int,default=1);p.add_argument('--threads',type=int,default=8);p.add_argument('--period-ps',type=int,default=2500)
+    p.add_argument('--customization',type=Path)
+    for phase in ('generic','map','opt'):
+        p.add_argument('--'+phase+'-effort',choices=['low','medium','high'])
     p.add_argument('--effort',default='medium');p.add_argument('--defines',default='SYNTHESIS USE_FAKERAM')
     a=p.parse_args()
     if a.jobs<1:p.error('--jobs must be positive')
@@ -163,7 +166,10 @@ def main():
         origin_spec=importlib.util.spec_from_file_location('preserved_origin_genus_blocks',origin_script)
         origin_flow=importlib.util.module_from_spec(origin_spec);origin_spec.loader.exec_module(origin_flow)
     out=a.out_dir.resolve();out.mkdir(parents=True,exist_ok=True)
-    inputs=[a.rtl,a.blackboxes,a.std_lib,a.spec,HERE/'genus_blocks.py',HERE/'genus_schedule.py',HERE/'run_genus.py',HERE.parent/'tcl/genus-block.tcl',HERE.parent/'tcl/stage-driver.tcl']+sorted((HERE.parent/'tcl/stages').glob('*.tcl'))+sorted(a.sram_lib_dir.glob('*.lib'))
+    inputs=[a.rtl,a.blackboxes,a.std_lib,a.spec,HERE/'genus_blocks.py',HERE/'genus_schedule.py',HERE/'run_genus.py',HERE.parent/'tcl/synthesize-hierarchical-block.tcl',HERE.parent/'tcl/run-synthesis-stages.tcl',HERE.parent/'tcl/iteration-control.tcl',HERE/'iteration.py']+sorted((HERE.parent/'tcl/stages').glob('*.tcl'))+sorted(a.sram_lib_dir.glob('*.lib'))
+    if a.customization:
+        from iteration import load_customization, input_paths
+        inputs += [a.customization]+[Path(p) for p in input_paths(load_customization(a.customization))]
     if a.repair_rvv_genvars: inputs += [HERE/'repair_genvars.py'] + ([a.genvar_repair_proof] if a.genvar_repair_proof else [])
     if a.extract_element_cones: inputs += [HERE/'genus_cone_extract.py']
     if a.yosys_boundaries: inputs += [HERE/'genus_yosys_plan.py',HERE/'block_plan.py']
@@ -172,7 +178,7 @@ def main():
     if a.factor_lsu: inputs += [HERE/'genus_lsu_factor.py',HERE/'genus_lsu.py',HERE/'genus_cec.py']
     if a.factor_lsu_state: inputs += [HERE/'genus_lsu_state.py',HERE/'genus_cec_x.py',HERE/'genus_cec_parts.py']
     if a.factor_lsu_state and not a.factor_lsu: p.error('--factor-lsu-state requires --factor-lsu')
-    identity=dict(jobs=a.jobs,hashes={str(x.resolve()):sha(x) for x in inputs},blocks=a.blocks,flatten_blocks=a.flatten_blocks,clean_blocks=a.clean_blocks,factor_mt=a.factor_mt,factor_lsu=a.factor_lsu,factor_lsu_state=a.factor_lsu_state,top=a.top,threads=a.threads,period=a.period_ps,effort=a.effort,defines=a.defines,yosys=a.yosys,genus=a.genus)
+    identity=dict(jobs=a.jobs,hashes={str(x.resolve()):sha(x) for x in inputs},blocks=a.blocks,flatten_blocks=a.flatten_blocks,clean_blocks=a.clean_blocks,factor_mt=a.factor_mt,factor_lsu=a.factor_lsu,factor_lsu_state=a.factor_lsu_state,top=a.top,threads=a.threads,period=a.period_ps,effort=a.effort,defines=a.defines,yosys=a.yosys,genus=a.genus,generic_effort=a.generic_effort,map_effort=a.map_effort,opt_effort=a.opt_effort)
     fingerprint=hashlib.sha256(json.dumps(identity,sort_keys=True).encode()).hexdigest()
     previous_identity=json.loads((out/'identity.json').read_text()) if (out/'identity.json').is_file() else None
     previous_fingerprint=hashlib.sha256(json.dumps(previous_identity,sort_keys=True).encode()).hexdigest() if previous_identity else None
@@ -353,7 +359,10 @@ def main():
             print('Cached '+name,flush=True)
         else:
             mapped=folder/'combined.v'
-            cmd=[sys.executable,str(HERE/'run_genus.py'),'--genus',a.genus,'--yosys',a.yosys,'--rtl',str(rtl),'--blackboxes',str(a.blackboxes.resolve()),'--top',name,'--clk-port',unit['clock'],'--std-lib',str(a.std_lib.resolve()),'--sram-lib-dir',str(a.sram_lib_dir.resolve()),'--spec',str(a.spec.resolve()),'--out-dir',str(folder),'--netlist',str(mapped),'--script',str(HERE.parent/'tcl/genus-block.tcl'),'--threads',str(a.threads),'--period-ps',str(a.period_ps),'--effort',a.effort,'--defines',a.defines,'--hierarchy','preserve','--unit-mode','--mode','io']
+            cmd=[sys.executable,str(HERE/'run_genus.py'),'--genus',a.genus,'--yosys',a.yosys,'--rtl',str(rtl),'--blackboxes',str(a.blackboxes.resolve()),'--top',name,'--clk-port',unit['clock'],'--std-lib',str(a.std_lib.resolve()),'--sram-lib-dir',str(a.sram_lib_dir.resolve()),'--spec',str(a.spec.resolve()),'--out-dir',str(folder),'--netlist',str(mapped),'--script',str(HERE.parent/'tcl/synthesize-hierarchical-block.tcl'),'--threads',str(a.threads),'--period-ps',str(a.period_ps),'--effort',a.effort,'--defines',a.defines,'--hierarchy','preserve','--unit-mode','--mode','io']
+            if unit['top'] and a.customization: cmd += ['--customization',str(a.customization.resolve())]
+            for phase in ('generic','map','opt'):
+                if getattr(a,phase+'_effort'):cmd += ['--'+phase+'-effort',getattr(a,phase+'_effort')]
             for path in depfiles:cmd+=['--child-netlist',str(path)]
             for child in children:cmd+=['--preserve-block',child]
             print('Mapping '+name,flush=True);run(cmd,folder/'driver.log')

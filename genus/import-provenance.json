@@ -150,18 +150,6 @@
       "source": "coralnpu/PnR-Flow-Kit/runs/rvv-n6-400mhz-auto-20261102-201059/synthesis-flow/scripts/test_hierarchical_area.py",
       "sha256": "833996708f9feaebf2c99988ae4f9188cfc1c0968ac44694f6e1010730f4e0cf"
     },
-    "tcl/genus.tcl": {
-      "source": "coralnpu/PnR-Flow-Kit/runs/rvv-n6-400mhz-auto-20261102-201059/synthesis-flow/tcl/genus.tcl",
-      "sha256": "e581b85cef8f5b3c58ffe1fdfe17387ced58073bd3b074ca0afa8631aa0ef0da"
-    },
-    "tcl/genus-block.tcl": {
-      "source": "coralnpu/PnR-Flow-Kit/runs/rvv-n6-400mhz-auto-20261102-201059/synthesis-flow/tcl/genus-block.tcl",
-      "sha256": "9e98a21f861fc7e2fc674222b3386ce95d917803a3fa4ca4dbb596576b42e54b"
-    },
-    "tcl/power.tcl": {
-      "source": "coralnpu/PnR-Flow-Kit/runs/rvv-n6-400mhz-auto-20261102-201059/synthesis-flow/tcl/power.tcl",
-      "sha256": "6808c17f989239de81d50ecafba960d9a0872446f02a65df527e746a2d3f6489"
-    },
     "rtl/GenusMtFactor.sv": {
       "source": "coralnpu/PnR-Flow-Kit/runs/rvv-n6-400mhz-auto-20261102-201059/synthesis-flow/rtl/GenusMtFactor.sv",
       "sha256": "ed29914776034d10fb855da5efe617b55ebb265824405556e73c7362114461a2"
@@ -198,10 +186,6 @@
       "source": "coralnpu/PnR-Flow-Kit/tests/test_wide_sram.py",
       "sha256": "ec648b31738941122dbb592edb9e6e7fa6b22b71c8b2d55e4894efe2b35c0950"
     },
-    "tcl/mlem-n6-synth.tcl": {
-      "source": "coralnpu/PnR-Flow-Kit/tcl/mlem-n6-synth.tcl",
-      "sha256": "b36d5326728be0cb957a82e9e4cbc1cc768674ec3b3fb5a22a4560c84883ee22"
-    },
     "scripts/repair_genvars.py": {
       "source": "coralnpu/PnR-Flow-Kit/runs/rvv-n6-400mhz-auto-20261102-201059/scripts/repair_genvars.py",
       "sha256": "bd74d9109f0427155a41ccd7323db5f6ef04df4f0745021bd3d4270de674af33"
@@ -209,6 +193,22 @@
     "scripts/resource_runtime.py": {
       "source": ".workspace/experiment-queue/resource_runtime.py",
       "sha256": "a8826c7ac1298ffeca1a1e8d4fab737f64f61384223d7b04be0f704a1b5fa5e9"
+    },
+    "tcl/synthesize-flat.tcl": {
+      "source": "coralnpu/PnR-Flow-Kit/runs/rvv-n6-400mhz-auto-20261102-201059/synthesis-flow/tcl/genus.tcl",
+      "sha256": "e581b85cef8f5b3c58ffe1fdfe17387ced58073bd3b074ca0afa8631aa0ef0da"
+    },
+    "tcl/synthesize-hierarchical-block.tcl": {
+      "source": "coralnpu/PnR-Flow-Kit/runs/rvv-n6-400mhz-auto-20261102-201059/synthesis-flow/tcl/genus-block.tcl",
+      "sha256": "9e98a21f861fc7e2fc674222b3386ce95d917803a3fa4ca4dbb596576b42e54b"
+    },
+    "tcl/report-opensta-leakage-power.tcl": {
+      "source": "coralnpu/PnR-Flow-Kit/runs/rvv-n6-400mhz-auto-20261102-201059/synthesis-flow/tcl/power.tcl",
+      "sha256": "6808c17f989239de81d50ecafba960d9a0872446f02a65df527e746a2d3f6489"
+    },
+    "tcl/legacy-mlem-n6-synthesis.tcl": {
+      "source": "coralnpu/PnR-Flow-Kit/tcl/mlem-n6-synth.tcl",
+      "sha256": "b36d5326728be0cb957a82e9e4cbc1cc768674ec3b3fb5a22a4560c84883ee22"
     }
   }
 }

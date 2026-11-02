@@ -10,6 +10,6 @@ set_db max_cpus $::env(FLOW_THREADS)
 set_db lp_insert_clock_gating false
 set_db library [concat [list $::env(FLOW_STD_LIB)] [glob -nocomplain [file join $::env(FLOW_SRAM_LIB_DIR) *.lib]]]
 read_netlist -top $top $::env(FLOW_RTL)
-read_sdc $::env(FLOW_SDC)
+read_sdc $::env(FLOW_SDC) -stop_on_errors
 set_time_unit -picoseconds
 set_load_unit -femtofarads

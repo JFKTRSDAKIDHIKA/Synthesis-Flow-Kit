@@ -26,10 +26,10 @@
     "scripts/genus_blocks.py",
     "scripts/run_genus.py",
     "scripts/test_genus_blocks.py",
-    "tcl/genus.tcl",
+    "tcl/synthesize-flat.tcl",
     "scripts/repair_genvars.py",
-    "tcl/genus-block.tcl",
-    "tcl/final-check.tcl",
+    "tcl/synthesize-hierarchical-block.tcl",
+    "tcl/verify-mapped-netlist.tcl",
     "scripts/genus_lsu_factor.py"
   ],
   "production_genus_jobs_launched": 0,
@@ -58,5 +58,43 @@
     "limits": "Tcl commands are stubbed in stage tests; no native Genus job or timing closure claimed",
     "production_genus_jobs_launched": 0,
     "publication_correction": "Restored empty constraints stage found in staged-file review; added execution coverage before publication"
+  },
+  "tcl_naming_validation": {
+    "date": "2026-11-03",
+    "command": "make -C coralnpu/Synthesis-Flow-Kit genus-test",
+    "result": {
+      "total": 58,
+      "passed": 57,
+      "skipped": 1
+    },
+    "scope": "Descriptive Tcl driver names; launcher, cache keys, snapshot tests and documentation updated; historical campaign paths unchanged",
+    "production_genus_jobs_launched": 0
+  },
+  "iteration_methodology_validation": {
+    "date": "2026-11-03",
+    "command": "make -C coralnpu/Synthesis-Flow-Kit genus-test",
+    "tests": {
+      "total": 70,
+      "passed": 69,
+      "skipped": 1
+    },
+    "followup_checks": "Affected comparison and required-hold tests passed after provenance/identity refinements",
+    "native_fixture_directory": "coralnpu/PnR-Flow-Kit/runs/genus-iteration-validation-20261103-002353",
+    "native_checks": [
+      "Genus 23.14 logic fixture with design SDC, ordered hook, generic and mapped DB checkpoints, mapped-netlist validation and fresh native restore",
+      "Mapped DB restart with changed downstream optimization effort; earlier stages skipped; final native restore passed",
+      "Generic DB restart tested separately before the required hold stage was integrated",
+      "Required OpenSTA 3.1.0 min-delay analysis completed on baseline and mapped-checkpoint successor; final hold reports include library hold checks and slack",
+      "Public compare command emitted setup/hold/area/cell deltas with explicit engine/model provenance"
+    ],
+    "fixture_metrics": {
+      "baseline_setup_slack_ps": 1672,
+      "baseline_hold_slack_ps": 70.25,
+      "successor_setup_slack_ps": 1679,
+      "successor_hold_slack_ps": 57.44
+    },
+    "qualification_limits": "Small logic fixture only, at the recorded synthesis Liberty corner with ideal clocks and no extracted RC; no AMEOOO/RVV/VME full-chip, equivalence, worst-PVT or physical signoff claim",
+    "preserved_failures": "Earlier tool-symlink, unsupported Genus -early and OpenSTA report-wrapper issues remain in separately named attempts",
+    "production_genus_jobs_launched": 0
   }
 }

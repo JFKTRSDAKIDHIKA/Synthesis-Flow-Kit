@@ -16,6 +16,7 @@ import time
 ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT / 'scripts'))
 from resource_runtime import execute, available, ResourceRetry
+from iteration import design_inputs, input_paths, checkpoint_settings
 
 PATH_KEYS = ('rtl', 'blackboxes', 'std_lib', 'sram_lib_dir', 'spec')
 OPTIONS = {'threads', 'period_ps', 'effort', 'defines', 'blocks', 'yosys_boundaries',
@@ -23,7 +24,7 @@ OPTIONS = {'threads', 'period_ps', 'effort', 'defines', 'blocks', 'yosys_boundar
            'factor_mt', 'factor_lsu', 'factor_lsu_state', 'extract_element_cones',
            'reuse_from', 'clk_port', 'hierarchy', 'mode',
            'clk_transition_ps', 'uncertainty_ps', 'hold_uncertainty_ps', 'io_min_ps',
-           'io_fraction', 'input_transition_ps', 'output_load_ff'}
+           'io_fraction', 'input_transition_ps', 'output_load_ff', 'generic_effort', 'map_effort', 'opt_effort'}
 BLOCK_ONLY = {'blocks', 'yosys_boundaries', 'repair_rvv_genvars', 'genvar_repair_proof',
               'flatten_blocks', 'clean_blocks', 'factor_mt', 'factor_lsu', 'factor_lsu_state',
               'extract_element_cones', 'reuse_from'}
@@ -46,14 +47,17 @@ def write_json(path, data):
 
 
 def tool(value, base, command=False):
-    local = (base / value).resolve()
+    # Cadence dispatches through symlink names; resolving genus to its generic
+    # wrapper changes tool selection and breaks the installed launcher.
+    local = Path(os.path.abspath(base / value))
     parts = [str(local)] if local.is_file() else shlex.split(value)
     if not parts or (not command and len(parts) != 1):
         raise ValueError('Tool must be an executable path: ' + value)
     resolved = shutil.which(parts[0])
     if not resolved:
         raise ValueError('Tool not found; source the workspace environment: ' + parts[0])
-    parts[0] = str(Path(resolved).resolve())
+    # The Yosys bundle locates libexec relative to its resolved installation.
+    parts[0] = str(Path(resolved).resolve() if command else Path(resolved).absolute())
     return shlex.join(parts) if command else parts[0]
 
 
@@ -74,7 +78,8 @@ def configuration(path, stage):
     c = json.loads(config_bytes)
     if not isinstance(c,dict): raise ValueError('Configuration must be a JSON object')
     allowed = {'schema_version', 'platform_id', 'flow', 'top', *PATH_KEYS, 'out_dir',
-               'tools', 'options', 'lock_file', 'admission_gib', 'input_sha256'}
+               'tools', 'options', 'lock_file', 'admission_gib', 'input_sha256',
+               'sdc', 'hooks', 'hook_inputs', 'checkpoint', 'hold_sta'}
     unknown = set(c) - allowed
     if unknown:
         raise ValueError('Unknown configuration keys: ' + ', '.join(sorted(unknown)))
@@ -89,10 +94,12 @@ def configuration(path, stage):
         if not (p.is_dir() if key == 'sram_lib_dir' else p.is_file()):
             raise ValueError('Missing input ' + key + ': ' + str(p))
         inputs[key] = p
+    custom = design_inputs(c,base)
+    checkpoint = checkpoint_settings(c,base,c['flow'])
     out = path_value(c['out_dir'], base)
     if out == ROOT or ROOT in out.parents:
         raise ValueError('Outputs must be outside genus/; scripts and results must not mix')
-    for key,p in inputs.items():
+    for key,p in {**inputs, **{str(i):Path(p) for i,p in enumerate(input_paths(custom))}}.items():
         if p == out or out in p.parents:
             raise ValueError('Inputs must not live inside the output directory: ' + key)
     options = dict(c.get('options', {}))
@@ -112,11 +119,24 @@ def configuration(path, stage):
         raise ValueError('Explicit block boundaries are required for bottom-up synthesis')
     if c['flow'] == 'flat' and not options.get('clk_port'):
         raise ValueError('An explicit clock port is required for flat synthesis')
+    hold = c.get('hold_sta', {})
+    if not isinstance(hold,dict) or set(hold)-{'std_lib','sram_lib_dir','corner_id'}:
+        raise ValueError('hold_sta accepts std_lib, sram_lib_dir and corner_id')
+    if bool(hold.get('std_lib')) != bool(hold.get('sram_lib_dir')):
+        raise ValueError('Hold corner override requires both std_lib and sram_lib_dir')
+    if hold.get('std_lib') and not hold.get('corner_id'):
+        raise ValueError('An explicit hold corner_id is required for alternate libraries')
+    hold_lib=path_value(hold.get('std_lib',c['std_lib']),base)
+    hold_macros=path_value(hold.get('sram_lib_dir',c['sram_lib_dir']),base)
+    if not hold_lib.is_file() or not hold_macros.is_dir(): raise ValueError('Missing hold STA libraries')
+    if out==hold_lib or out in hold_lib.parents or out==hold_macros or out in hold_macros.parents:
+        raise ValueError('Hold libraries must be outside the output directory')
     tools = c.get('tools', {})
-    if set(tools) - {'genus', 'yosys'}:
-        raise ValueError('Only genus and yosys tool keys are supported')
+    if set(tools) - {'genus', 'yosys', 'sta'}:
+        raise ValueError('Only genus, yosys and sta tool keys are supported')
     genus = tool(tools.get('genus', 'genus'), base)
     yosys = tool(tools.get('yosys', 'yosys'), base, command=True)
+    sta = tool(tools.get('sta','sta'),base,command=True)
     script = ROOT / 'scripts' / ('genus_blocks.py' if c['flow'] == 'blocks' else 'run_genus.py')
     cmd = [sys.executable, str(script), '--genus', genus, '--yosys', yosys, '--top', c['top']]
     for key,p in inputs.items():
@@ -128,7 +148,7 @@ def configuration(path, stage):
     elif stage == 'plan':
         raise ValueError('plan is a Yosys-only bottom-up stage; flat flow supports check and synth')
     else:
-        cmd += ['--script', str(ROOT / 'tcl/genus.tcl')]
+        cmd += ['--script', str(ROOT / 'tcl/synthesize-flat.tcl')]
         options.setdefault('hierarchy', 'flat')
         options.setdefault('mode', 'io')
     for key,value in options.items():
@@ -140,6 +160,12 @@ def configuration(path, stage):
         else:
             if isinstance(value, list): value = ' '.join(map(str,value))
             cmd += ['--' + key.replace('_','-'), str(value)]
+    if input_paths(custom):
+        cmd += ['--customization', str(out/'design-inputs/customization.json')]
+    for point in checkpoint['save_after']:
+        cmd += ['--save-checkpoint',point]
+    if checkpoint['resume_from']:
+        cmd += ['--resume-checkpoint',checkpoint['resume_from']]
     pins = {str(p):sha(p) for key,p in inputs.items() if key != 'sram_lib_dir'}
     pins.update({str(p):sha(p) for p in sorted(inputs['sram_lib_dir'].glob('*.lib'))})
     if not any(inputs['sram_lib_dir'].glob('*.lib')):
@@ -153,6 +179,31 @@ def configuration(path, stage):
     # Keep optional cache/proof inputs in the launch record as identities too.
     if options.get('genvar_repair_proof'):
         p=path_value(options['genvar_repair_proof'],base);pins[str(p)]=sha(p)
+    pins.update({p:sha(p) for p in input_paths(custom)})
+    pins.update({str(p):sha(p) for p in [hold_lib,*sorted(hold_macros.glob('*.lib'))]})
+    if checkpoint['resume_from']:
+        from iteration import CHECKPOINTS
+        resume_path=Path(checkpoint['resume_from'])
+        resume=json.loads(resume_path.read_text())
+        if resume.get('stage') not in CHECKPOINTS or set(resume.get('artifacts',{}))!={'design.db','constraints.sdc','tool-version.txt'}:
+            raise ValueError('Invalid checkpoint manifest')
+        from argparse import Namespace
+        from iteration import validate_checkpoint
+        defaults=dict(hierarchy='flat',defines='SYNTHESIS USE_FAKERAM',clk_port=options.get('clk_port'),
+                      period_ps=options['period_ps'],clk_transition_ps=20,uncertainty_ps=100,
+                      hold_uncertainty_ps=50,mode='io',io_fraction=.2,io_min_ps=100,
+                      input_transition_ps=50,output_load_ff=4,effort='medium',
+                      generic_effort=None,map_effort=None,opt_effort=None)
+        defaults.update({key:value for key,value in options.items() if key in defaults})
+        if isinstance(defaults['defines'],list): defaults['defines']=' '.join(map(str,defaults['defines']))
+        native=Namespace(**defaults,top=c['top'],rtl=inputs['rtl'],blackboxes=inputs['blackboxes'],
+                         std_lib=inputs['std_lib'],sram_lib_dir=inputs['sram_lib_dir'],spec=inputs['spec'],genus=genus)
+        validate_checkpoint(resume_path,native,custom)
+        pins[str(resume_path)]=sha(resume_path)
+        for name,expected in resume['artifacts'].items():
+            artifact=resume_path.parent/name
+            if sha(artifact)!=expected: raise ValueError('Checkpoint artifact changed: '+name)
+            pins[str(artifact)]=expected
     lock = path_value(c['lock_file'], base)
     if lock == out or out in lock.parents: raise ValueError('The shared lock must be outside the output directory')
     if lock in inputs.values() or str(lock) in pins: raise ValueError('The shared lock cannot be an input file')
@@ -161,8 +212,9 @@ def configuration(path, stage):
     if not isinstance(admission,(int,float)) or admission < 0: raise ValueError('admission_gib must be nonnegative')
     return c, out, lock, dict(schema_version=1, platform_id=c['platform_id'], stage=stage,
         configuration=str(path), configuration_sha256=hashlib.sha256(config_bytes).hexdigest(), command=cmd,
-        inputs_sha256=pins, sources_sha256=source_hashes(),
-        tools_sha256={genus:sha(genus), shlex.split(yosys)[0]:sha(shlex.split(yosys)[0])},
+        inputs_sha256=pins, sources_sha256=source_hashes(), customization=custom, checkpoint=checkpoint,
+        hold_sta_command=sta, tools_sha256={genus:sha(genus), shlex.split(yosys)[0]:sha(shlex.split(yosys)[0]),
+                       shlex.split(sta)[0]:sha(shlex.split(sta)[0])},
         resource_policy=dict(threads=options['threads'], native_jobs=1, admission_gib=admission,
             pause_below_gib=8,resume_above_gib=12,own_pss_limit_gib=32,sampled_only=True),
         scope=('Yosys-only elaboration and structural plan; no native mapping or timing qualification' if stage=='plan' else
@@ -193,6 +245,24 @@ def run_config(stage, config):
         if '--script' in manifest['command']:
             index=manifest['command'].index('--script')+1
             manifest['command'][index]=str(snapshot/'tcl'/Path(manifest['command'][index]).name)
+        # Preserve the absolute directory tree so hook-relative source paths work.
+        custom=json.loads(json.dumps(manifest['customization']))
+        relocated={}
+        for original in input_paths(custom):
+            source=Path(original)
+            target=out/'design-inputs/files'/source.relative_to(source.anchor)
+            target.parent.mkdir(parents=True,exist_ok=True)
+            if sha(source)!=manifest['inputs_sha256'][original]: raise RuntimeError('Design input changed before snapshot: '+original)
+            shutil.copy2(source,target)
+            if sha(target)!=manifest['inputs_sha256'][original]: raise RuntimeError('Design input changed while snapshotting: '+original)
+            relocated[original]=str(target)
+        if relocated:
+            custom['sdc']=relocated.get(custom['sdc'])
+            custom['hooks']={point:[relocated[p] for p in paths] for point,paths in custom['hooks'].items()}
+            custom['dependencies']=[relocated[p] for p in custom['dependencies']]
+            custom['origins']={v:k for k,v in relocated.items()}
+            write_json(out/'design-inputs/customization.json',custom)
+        manifest['design_snapshot_sha256']={target:sha(target) for target in relocated.values()}
         write_json(out/'launch.json',manifest)
         if sha(config)!=manifest['configuration_sha256']:raise RuntimeError('Configuration changed before launch')
         shutil.copy2(config, out/'configuration.json')
@@ -224,7 +294,7 @@ def run_config(stage, config):
                     FLOW_THREADS=str(manifest['resource_policy']['threads']),FLOW_PERIOD_PS=str(opts['period_ps']),
                     FLOW_EXPECTED_MACROS='\n'.join(expected))
                 command=[manifest['command'][manifest['command'].index('--genus')+1],'-no_gui','-batch',
-                         '-files',str(snapshot/'tcl/final-check.tcl')]
+                         '-files',str(snapshot/'tcl/verify-mapped-netlist.tcl')]
                 write_json(native/'command.json',dict(command=command,environment=native_env))
                 execute(command,native,native/'console.log',update,native_env)
                 text=(native/'console.log').read_text(errors='replace')
@@ -232,12 +302,20 @@ def run_config(stage, config):
                     raise RuntimeError('Final native restore did not reach its completion marker')
                 if re.search(r'\*\*ERROR:|^Error\s*:',text,re.M):
                     raise RuntimeError('Final native restore reported an error')
+            if stage=='synth':
+                from hold_sta import analyze
+                analyze(out,c,config.resolve().parent,snapshot,manifest['hold_sta_command'],execute,update,write_json,sha)
+            for name,digest in manifest.get('design_snapshot_sha256',{}).items():
+                if sha(name)!=digest: raise RuntimeError('Design snapshot changed during run: '+name)
             for name,digest in manifest['inputs_sha256'].items():
                 if sha(name)!=digest: raise RuntimeError('Input changed during the run: '+name)
             if sha(config)!=manifest['configuration_sha256']:raise RuntimeError('Configuration changed during the run')
             if source_hashes()!=manifest['sources_sha256']: raise RuntimeError('Flow source changed during the run')
             if stage=='synth' and (not (out/'mapped.v').exists() or not (out/'mapped.v').stat().st_size):
                 raise RuntimeError('Backend returned without a mapped netlist')
+            if stage=='synth':
+                from compare_runs import collect
+                write_json(out/'metrics.json',collect(out,c['top']))
             write_json(status,dict(state='complete',stage=stage,finished_unix=time.time(),
                 scope=manifest['scope'], mapped_sha256=sha(out/'mapped.v') if stage=='synth' else None))
         except BaseException as exc:
@@ -255,6 +333,12 @@ def main():
             'plan':'Elaborate and qualify block boundaries with Yosys only',
             'synth':'Run Genus through the shared slot and sampled memory guard'}[name])
         q.add_argument('configuration',type=Path)
+    q=sub.add_parser('compare',help='Compare two completed preserved synthesis runs')
+    q.add_argument('baseline',type=Path)
+    q.add_argument('variant',type=Path)
+    q.add_argument('--json',action='store_true')
+    q.add_argument('--out',type=Path)
+    q.add_argument('--allow-different-inputs',action='store_true')
     q=sub.add_parser('prepare',help='Self-contained SRAM preparation helpers')
     q.add_argument('helper',choices=['models','bind','bind-wide','verify-wide'])
     q.add_argument('arguments',nargs=argparse.REMAINDER)
@@ -262,6 +346,14 @@ def main():
     q.add_argument('manifest',type=Path)
     q.add_argument('--genus',default='genus')
     args=p.parse_args()
+    if args.command=='compare':
+        from compare_runs import compare, markdown
+        record=compare(args.baseline,args.variant,args.allow_different_inputs)
+        if args.out:
+            if args.out.exists(): raise ValueError('Preserve existing comparison output: '+str(args.out))
+            write_json(args.out,record)
+        print(json.dumps(record,indent=2) if args.json else markdown(record))
+        return 0
     if args.command=='legacy-mlem':
         from legacy_mlem import replay
         replay(args.manifest,args.genus,sha,write_json,ROOT/'run.py')

@@ -39,9 +39,13 @@ qualify generated RTL, prove equivalence or reserve a license.
 5. Synthesize selected blocks bottom-up, validate each mapped result, and
    assemble the complete hierarchy with exact macro and clock/structure checks.
 6. Restore the assembled netlist and top-level SDC in a fresh Genus session.
-   Report native structure, timing intent, clocks, area, setup and hold; assert
+   Report native structure, timing intent, clocks, area and setup; assert
    the clock period and macro counts again. Save these in `native-final/`.
-7. Recheck input and methodology hashes and publish `entry-status.json`.
+7. Run independent OpenSTA min-delay analysis of the final mapped netlist and
+   exported SDC. Preserve detailed hold paths, library hold requirements, slack,
+   coverage and engine/corner provenance in `native-hold/`. Copy the labelled
+   hold report to `native-final/hold.rpt` for discovery and comparison.
+8. Recheck input and methodology hashes and publish `entry-status.json`.
 
 Defaults are one native job and two Genus threads. The sampled memory guard
 pauses only its own process group below 8 GiB host availability, resumes above
@@ -50,6 +54,42 @@ sampled protection, not OS isolation. Exit 75 means admission/lock/resource
 retry; use a new attempt directory after execution has produced partial results.
 An external queue may schedule retries by calling this same entry. It must
 preserve each attempt. Ordinary tool/qualification failures exit 2.
+
+Genus 23.14 `report_timing` does not support `-early`. A required separate
+OpenSTA stage computes actual min-delay/hold checks using `report_checks
+-path_delay min`, including the library hold requirement and data arrival/
+required times. `tools.sta` selects the OpenSTA executable (default `sta`). A
+missing tool, failed link, SDC error or missing completion marker fails the run.
+Hold violations remain report results; execution success does not mean closure.
+
+By default, hold uses the same Liberty files/corner as synthesis. An explicit
+`hold_sta` configuration can select alternate min-corner libraries:
+
+```json
+{
+  "tools": {"genus": "genus", "yosys": "yosys", "sta": "sta"},
+  "hold_sta": {
+    "corner_id": "REPLACE_WITH_QUALIFIED_FAST_CORNER",
+    "std_lib": "/absolute/path/to/fast-standard.lib",
+    "sram_lib_dir": "/absolute/path/to/fast-macro-libs"
+  }
+}
+```
+
+Alternate libraries require all three fields; they must match the mapped cell
+and macro interfaces. All Liberty files and the STA executable are recorded
+and hashed. The stage reads the Genus-exported SDC unchanged (including its
+unit declarations), then reports in ps/fF and verifies the clock period. It
+refuses unresolved black boxes and records timing coverage. It also writes a
+setup cross-check using the same engine/model. Empty coverage output means
+`check_setup` reported no issues; it is not a proof of complete constraints.
+
+This is **pre-layout hold STA** with ideal clocks, pin/load capacitances and
+no extracted interconnect. A same-corner result is not worst-case PVT coverage.
+Post-CTS/routed hold closure requires the corresponding clocks, parasitics,
+min-corner libraries and a qualified downstream STA/signoff flow. The report
+provenance states these limits; no placeholder or setup slack substitutes for
+hold analysis.
 
 Success means mapping/structural execution completed and native reports were
 produced. It **does not mean setup/hold closure, full equivalence, routed physical
@@ -79,8 +119,8 @@ mapping algorithm. Flat and bottom-up block drivers select their explicit
 elaboration differences; the block driver reads and preserves child netlists
 and permits a virtual clock for combinational units.
 
-`run.py` remains the public entrance. Its snapshot runs `tcl/genus.tcl` (flat)
-or `tcl/genus-block.tcl` (block), then `tcl/stage-driver.tcl` sources these files
+`run.py` remains the public entrance. Its snapshot runs `tcl/synthesize-flat.tcl` (flat)
+or `tcl/synthesize-hierarchical-block.tcl` (block), then `tcl/run-synthesis-stages.tcl` sources these files
 in order in one Genus session:
 
 | Stage file under `tcl/stages/` | Responsibility | Main output/state |
@@ -101,15 +141,12 @@ A failure propagates out of the driver before its completion marker. Log markers
 files are frozen with the campaign source snapshot and included in block cache
 identity; editing a stage invalidates its old mapping identity.
 
-These files are session stages, not standalone shell entry points. Splitting a
-file does not provide safe intermediate restart: the launcher still executes a
-complete fresh session and preserves partial attempts. Native database save/
-restore and state qualification would be required before exposing stage resume.
-No retiming, pipeline insertion or additional timing exceptions are enabled by
-this organization.
+These files are session stages, not standalone shell entry points. Use the
+checkpoint interface below for supported stage restart. No retiming, pipeline
+insertion or additional timing exceptions are enabled by this organization.
 
 The assembled hierarchy is checked in a separate fresh session. Its driver,
-`tcl/final-check.tcl`, sources `tcl/final/10-restore.tcl`, `20-validate.tcl`,
+`tcl/verify-mapped-netlist.tcl`, sources `tcl/final/10-restore.tcl`, `20-validate.tcl`,
 `30-reports.tcl` and `40-export.tcl`. They restore the netlist/original SDC,
 assert the clock and macro inventory, report native structure/timing/area,
 and export the restored SDC. They perform no synthesis optimization.
@@ -120,9 +157,126 @@ not a measured external delay. Select interface assumptions explicitly when
 qualifying a configuration. The `reg2reg` mode instead excludes I/O paths and
 must not be reported as complete interface closure.
 
-The historical `mlem-n6-synth.tcl` template remains a frozen replay artifact;
-it is not refactored into the new AMEOOO/RVV/VME methodology. `power.tcl` is an
+The historical `legacy-mlem-n6-synthesis.tcl` template remains a frozen replay artifact;
+it is not refactored into the new AMEOOO/RVV/VME methodology. `report-opensta-leakage-power.tcl` is an
 auxiliary power-analysis script, not an automatically invoked synthesis stage.
+The legacy replay adapter still reads `scripts/mlem-n6-synth.tcl` from the
+selected frozen campaign; renaming the template here does not change that
+historical input contract.
+
+## Repeated design iterations
+
+Routine iterations change a JSON profile, a design-owned SDC or a design-owned
+hook, rather than editing the Python launcher or shared stage Tcl. Use a fresh
+output directory for every variant. `examples/iteration/` demonstrates the
+configuration fields without selecting a qualified hardware platform.
+
+### Design SDC and Tcl hooks
+
+Optional top-level configuration fields:
+
+```json
+{
+  "sdc": "constraints/design.sdc",
+  "hooks": {
+    "before_optimize": ["hooks/targeted-optimization.tcl"],
+    "after_optimize": ["hooks/check-optimization.tcl"]
+  },
+  "hook_inputs": ["hooks/shared-settings.tcl"]
+}
+```
+
+The SDC **replaces** the generic clock/I/O budget. It must define `core_clock`
+with the configured `options.period_ps`. It owns clock uncertainty, I/O budgets,
+transitions, loads and any justified timing exceptions. The flow sets ps/fF
+before reading it and verifies the clock. The final exported SDC captures hook
+changes made before export and is used in the independent final restore.
+
+Hook keys are `before_` or `after_` plus `elaborate`, `constraints`, `generic`,
+`map`, `optimize`, `reports` or `export`. Each value is an ordered list of Tcl
+files; errors stop the flow. Hooks execute in the current Genus session at
+global Tcl scope. Keep changes appropriate to the stage: hooks after reports
+or export are for observation, not changes to the design or timing intent.
+Use `[file dirname [info script]]` for sibling helper paths. List every extra
+file a hook/SDC sources or reads in `hook_inputs`; arbitrary Tcl dependency
+tracing is not automatic. Files, including dependencies, are copied with their
+relative directory relationships preserved under `design-inputs/files/` and
+hashed before/after execution. Undeclared external dependencies are outside
+this reproducibility contract. Do not mutate the flow's `FLOW_*` environment,
+driver variables or output paths from a hook.
+
+In flat flow these settings apply to the complete design. In bottom-up flow
+they apply **only to the top unit**, whose port names match the design SDC;
+child blocks retain their generic interface constraints. They do not derive
+child timing budgets from top-level STA. All customization input hashes enter
+the block cache identity conservatively, so changes may remap child units too.
+
+`options.generic_effort`, `options.map_effort` and `options.opt_effort` select
+individual effort levels; each defaults to `options.effort`. Change those
+configuration fields rather than editing the stage script to sweep effort.
+
+### Native checkpoints and restart
+
+Flat flow can save native Genus databases after these stages:
+
+```json
+{
+  "checkpoint": {"save_after": ["50-generic", "60-map", "70-optimize"]}
+}
+```
+
+Each selected `checkpoints/STAGE/` contains `design.db`, `constraints.sdc`,
+`tool-version.txt` and a hash-sealed `checkpoint.json`. Only a native completed
+checkpoint is sealed, including one saved before a later stage fails. This
+uses Genus Common UI `write_db -all_root_attributes` / `read_db`; these retain
+native design/setup state rather than approximating restart from Verilog.
+
+To iterate from mapping, create a new configuration/output directory:
+
+```json
+{
+  "out_dir": "/absolute/path/to/new-attempt",
+  "checkpoint": {"resume_from": "/absolute/path/to/baseline/checkpoints/60-map/checkpoint.json"},
+  "options": {"period_ps": 2500, "clk_port": "clock", "opt_effort": "high"}
+}
+```
+
+The example shows the relevant fields; retain all other required design inputs.
+`check` validates checkpoint hashes and compatibility without taking a license.
+`synth` restores it, verifies the native tool version and clock, and executes
+only later stages, followed by the usual mapped-netlist checks and cold final
+restore. Earlier/equal stage inputs, scripts, hooks, efforts and tool identity
+must match. Later hooks and efforts may change; e.g. a mapping checkpoint permits
+changing `opt_effort`, but not `map_effort`, the RTL, SDC or library. Change the
+latter inputs by starting fresh. CPU count is reapplied for the new attempt.
+Preserve the origin attempt and the original library/source paths: native
+checkpoints can refer to those paths. This is compatibility validation, not a
+proof of equivalence or identical optimization results to a fresh full run.
+
+Native stage restart currently supports flat flow only. Bottom-up runs use the
+existing checked `options.reuse_from` mapped-block cache. Do not infer that a
+top-level checkpoint can replace child-block qualification.
+
+### Comparing attempts
+
+```sh
+python3 coralnpu/Synthesis-Flow-Kit/genus/run.py compare /path/to/baseline /path/to/variant
+python3 coralnpu/Synthesis-Flow-Kit/genus/run.py compare /path/to/baseline /path/to/variant --json --out /path/to/comparison.json
+```
+
+Every successful synthesis writes `metrics.json`. Comparison reads retained
+native final reports and prints baseline/variant/delta for worst reported setup
+and hold slack (ps), cell area and cell count. Unsupported/missing report values
+remain unavailable; they are never zero-filled. Cell area is in the Liberty
+area convention, which must be verified before calling it square micrometres.
+Timing covers retained report paths, not a new routed signoff claim.
+
+The JSON also records configuration and input-hash differences. Different
+hardware/platform/library/tool identities are rejected by default; use
+`--allow-different-inputs` for an explicitly labelled comparison. Period, SDC
+and hook changes are visible experiment differences; a better slack under a
+looser constraint must not be interpreted as a faster implementation.
+Comparison is read-only and refuses to overwrite an existing `--out` file.
 
 ## Input preparation
 
@@ -174,6 +328,8 @@ PDK views to the methodology repository.
 | `scripts/{genus_*,netlist_lib,assemble_netlist,hierarchical_area,...}.py` | Mapping, proof, parser and report support |
 | `scripts/prepare_*.py`, `scripts/repair_genvars.py` | Input/binding/model preparation and checked metadata repair |
 | `scripts/resource_runtime.py` | Own-process-group sampled resource guard |
+| `scripts/iteration.py`, `scripts/compare_runs.py` | Design inputs, checkpoint compatibility and comparison |
+| `scripts/hold_sta.py`, `tcl/report-opensta-hold.tcl` | Required independent OpenSTA min-delay/hold analysis |
 | `tcl/`, `tcl/stages/`, `tcl/final/` | Small ordered drivers, shared synthesis stages and separate cold verification stages |
 | `rtl/` | Proof-backed reusable factoring helper RTL |
 | `tests/` and `scripts/test_*.py` | Launcher integration, structural and normalization regression tests |

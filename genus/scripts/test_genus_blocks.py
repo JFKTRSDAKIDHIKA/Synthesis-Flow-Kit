@@ -68,7 +68,7 @@ class GenusBlockPlanTests(unittest.TestCase):
 
     def test_cache_identity_preserves_mapping_settings_and_inputs(self):
         driver=str((HERE/'genus_blocks.py').resolve())
-        original=dict(hashes={driver:'old','genus-block.tcl':'tcl','run_genus.py':'normalizer'},period=2500,threads=8,blocks='Leaf',flatten_blocks='')
+        original=dict(hashes={driver:'old','synthesize-hierarchical-block.tcl':'tcl','run_genus.py':'normalizer'},period=2500,threads=8,blocks='Leaf',flatten_blocks='')
         changed=dict(original,hashes=dict(original['hashes'],**{driver:'new'}))
         self.assertEqual(mapping_identity(original),mapping_identity(changed))
         self.assertEqual(mapping_identity(original),mapping_identity(dict(changed,blocks='Leaf Parent',flatten_blocks='Parent')))

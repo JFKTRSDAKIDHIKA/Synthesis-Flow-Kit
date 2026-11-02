@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "platform_id": "REPLACE_WITH_EXPLICIT_PLATFORM_ID",
+  "flow": "flat",
+  "top": "REPLACE_WITH_TOP",
+  "rtl": "/absolute/path/to/prepared.v",
+  "blackboxes": "/absolute/path/to/blackboxes.v",
+  "std_lib": "/absolute/path/to/standard.lib",
+  "sram_lib_dir": "/absolute/path/to/macro-libs",
+  "spec": "/absolute/path/to/macro-spec.json",
+  "out_dir": "/absolute/path/to/new-attempt",
+  "lock_file": "/absolute/path/to/.workspace/genus-synthesis.lock",
+  "admission_gib": 36,
+  "sdc": "design.sdc",
+  "hooks": {
+    "before_optimize": [
+      "before-optimize.tcl"
+    ]
+  },
+  "hook_inputs": [],
+  "checkpoint": {
+    "save_after": [
+      "60-map"
+    ]
+  },
+  "options": {
+    "period_ps": 2500,
+    "clk_port": "clock",
+    "opt_effort": "high"
+  },
+  "tools": {
+    "genus": "genus",
+    "yosys": "yosys",
+    "sta": "sta"
+  }
+}
