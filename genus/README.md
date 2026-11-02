@@ -24,6 +24,15 @@ assert previously qualified input hashes, keyed by absolute or config-relative
 filenames. Paths resolve relative to the JSON file, regardless of shell cwd.
 No private PDK, RTL, license setting or technology file is bundled here.
 
+Store synthesis attempts under `Synthesis-Flow-Kit/runs/<unique-campaign-id>/`
+(Git-ignored), outside the `genus/` source folder. They are synthesis results,
+not PnR results. Configurations still name an explicit fresh `out_dir`.
+The completed methodology/iteration validation campaigns now live there;
+compatibility symlinks at their original PnR paths preserve frozen absolute
+references in configs, checkpoints and logs. Their contents were hash-verified
+after relocation without editing frozen records.
+
+
 `check` validates paths, settings, tools and any asserted hashes, then prints
 the launch intent. It creates no output and launches no EDA tool. It does not
 qualify generated RTL, prove equivalence or reserve a license.

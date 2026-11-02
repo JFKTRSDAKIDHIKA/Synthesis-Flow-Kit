@@ -8,7 +8,7 @@
   "std_lib": "/absolute/path/to/standard.lib",
   "sram_lib_dir": "/absolute/path/to/macro-libs",
   "spec": "/absolute/path/to/macro-spec.json",
-  "out_dir": "/absolute/path/to/new-attempt",
+  "out_dir": "/absolute/path/to/Synthesis-Flow-Kit/runs/UNIQUE-iteration",
   "lock_file": "/absolute/path/to/.workspace/genus-synthesis.lock",
   "admission_gib": 36,
   "sdc": "design.sdc",

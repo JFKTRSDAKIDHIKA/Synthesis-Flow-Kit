@@ -13,3 +13,7 @@ and execution success do not establish timing closure or physical signoff.
 Already active or queued frozen campaigns retain their original snapshots and
 controllers until they finish; migration must not alter their hashes or restart
 them. Preserve historical scripts as evidence, not as sources for new flows.
+
+New synthesis raw outputs belong under `Synthesis-Flow-Kit/runs/<unique-campaign-id>/`
+(ignored), outside `genus/`. PnR-Flow-Kit owns physical-design implementation
+outputs only. Keep compact reviewed synthesis evidence in `genus/validation.json`.

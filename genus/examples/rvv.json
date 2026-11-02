@@ -8,7 +8,7 @@
   "std_lib": "/absolute/path/to/qualified/inputs/standard.lib",
   "sram_lib_dir": "/absolute/path/to/qualified/lib",
   "spec": "/absolute/path/to/qualified/inputs/macro-spec.json",
-  "out_dir": "/absolute/path/to/PnR-Flow-Kit/runs/UNIQUE-rvv/genus",
+  "out_dir": "/absolute/path/to/Synthesis-Flow-Kit/runs/UNIQUE-rvv/genus",
   "lock_file": "/absolute/path/to/workspace/.workspace/genus-synthesis.lock",
   "admission_gib": 36,
   "tools": {

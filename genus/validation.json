@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "validation_run": "coralnpu/PnR-Flow-Kit/runs/genus-methodology-validation-20261102-225903",
+  "validation_run": "coralnpu/Synthesis-Flow-Kit/runs/genus-methodology-validation-20261102-225903",
   "tests": {
     "total": 53,
     "passed": 52,
@@ -79,7 +79,7 @@
       "skipped": 1
     },
     "followup_checks": "Affected comparison and required-hold tests passed after provenance/identity refinements",
-    "native_fixture_directory": "coralnpu/PnR-Flow-Kit/runs/genus-iteration-validation-20261103-002353",
+    "native_fixture_directory": "coralnpu/Synthesis-Flow-Kit/runs/genus-iteration-validation-20261103-002353",
     "native_checks": [
       "Genus 23.14 logic fixture with design SDC, ordered hook, generic and mapped DB checkpoints, mapped-netlist validation and fresh native restore",
       "Mapped DB restart with changed downstream optimization effort; earlier stages skipped; final native restore passed",
@@ -96,5 +96,14 @@
     "qualification_limits": "Small logic fixture only, at the recorded synthesis Liberty corner with ideal clocks and no extracted RC; no AMEOOO/RVV/VME full-chip, equivalence, worst-PVT or physical signoff claim",
     "preserved_failures": "Earlier tool-symlink, unsupported Genus -early and OpenSTA report-wrapper issues remain in separately named attempts",
     "production_genus_jobs_launched": 0
+  },
+  "result_relocation": {
+    "date": "2026-11-03",
+    "root": "coralnpu/Synthesis-Flow-Kit/runs",
+    "campaigns": 2,
+    "files_verified": 1236,
+    "all_file_hashes_preserved": true,
+    "old_path_compatibility_symlinks": true,
+    "manifest": "runs/relocation-genus-validation-20261103/manifest.json"
   }
 }

@@ -19,3 +19,6 @@ synth-results/
 # Python tooling in the Genus reference methodology.
 __pycache__/
 *.pyc
+
+# Raw synthesis campaigns: inputs, snapshots, databases, reports and logs.
+/runs/

@@ -9,3 +9,7 @@ The existing root Makefile and `scripts/` retain the older Design Compiler,
 Yosys and STA examples. They are separate backends, not alternative Genus
 entry points. Technology libraries, qualified design inputs and generated
 results are external to the methodology source directory.
+
+Raw synthesis results live under `runs/<unique-campaign-id>/` in this repository
+and are Git-ignored. Publish compact validation records, not native databases,
+netlists, source snapshots or logs.
